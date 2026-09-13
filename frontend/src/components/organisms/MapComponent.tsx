@@ -1,0 +1,182 @@
+"use client";
+
+/**
+ * MapComponent — интерактивная Яндекс.Карта (JS API 3.0) с метками заведений.
+ *
+ * Логика работы с API вынесена в `src/lib/yandex-map.ts`.
+ * Добавление/удаление точек сводится к передаче нового массива `places` —
+ * класс PlacesMap сам синхронизирует метки (diff add/remove).
+ *
+ * Требует NEXT_PUBLIC_YANDEX_MAPS_API_KEY. Без ключа показывает
+ * список заведений (graceful degradation).
+ */
+import { useEffect, useRef, useState } from "react";
+import { Place } from "@/types";
+import { isMapAvailable, PlacesMap, MapPoint } from "@/lib/yandex-map";
+
+export interface MapComponentProps {
+  places: Place[];
+  height?: number;
+}
+
+/** Выбранная точка (для карточки-подсказки). */
+interface SelectedPoint {
+  name: string;
+  address: string;
+  phone?: string | null;
+  workHours?: string | null;
+}
+
+/** Преобразование Place → MapPoint. */
+function toMapPoint(place: Place): MapPoint {
+  return {
+    id: place.id,
+    name: place.name,
+    address: place.address,
+    longitude: place.longitude,
+    latitude: place.latitude,
+  };
+}
+
+/**
+ * Организм: карта заведений с метками.
+ */
+export function MapComponent({ places, height = 400 }: MapComponentProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<PlacesMap | null>(null);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState("");
+  const [selected, setSelected] = useState<SelectedPoint | null>(null);
+
+  useEffect(() => {
+    if (!isMapAvailable || !containerRef.current) return;
+
+    const placesMap = new PlacesMap(containerRef.current, {
+      onClick: (point) => {
+        const place = places.find((p) => p.id === point.id);
+        if (place) {
+          setSelected({
+            name: place.name,
+            address: place.address,
+            phone: place.phone,
+            workHours: place.workHours,
+          });
+        }
+      },
+    });
+
+    mapRef.current = placesMap;
+
+    placesMap
+      .init()
+      .then(() => setReady(true))
+      .catch((err: Error) => setError(err.message));
+
+    return () => {
+      placesMap.destroy();
+      mapRef.current = null;
+      setReady(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMapAvailable]);
+
+  // Синхронизация меток при изменении списка заведений
+  useEffect(() => {
+    if (ready && mapRef.current) {
+      mapRef.current.setPoints(places.map(toMapPoint));
+    }
+  }, [places, ready]);
+
+  // Режим без ключа API: список заведений
+  if (!isMapAvailable) {
+    return (
+      <div
+        className="rounded-xl border border-gray-200 bg-gray-50 p-4"
+        data-testid="map-fallback"
+        style={{ minHeight: height }}
+      >
+        <p className="mb-3 text-sm font-medium text-gray-600">
+          🏠 Заведения (без карты — добавьте ключ
+          NEXT_PUBLIC_YANDEX_MAPS_API_KEY):
+        </p>
+        <ul className="space-y-2">
+          {places.map((p) => (
+            <li key={p.id} className="text-sm text-gray-700">
+              <span className="font-medium">{p.name}</span> — {p.address}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative" style={{ height }} data-testid="map">
+      {/* Контейнер карты (заполняется JS API) */}
+      <div
+        ref={containerRef}
+        className="h-full w-full rounded-xl border border-gray-200"
+      />
+
+      {/* Загрузка */}
+      {!ready && !error && (
+        <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-gray-50">
+          <span
+            className="h-8 w-8 animate-spin rounded-full border-4 border-primary-200 border-t-primary-600"
+            data-testid="map-spinner"
+          />
+          <span className="ml-2 text-sm text-gray-500">Загружаем карту...</span>
+        </div>
+      )}
+
+      {/* Ошибка загрузки API */}
+      {error && (
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-red-50 p-4 text-center text-sm text-red-700"
+          role="alert"
+        >
+          <p>Не удалось загрузить карту: {error}</p>
+          <p className="max-w-md text-xs text-red-600">
+            Проверьте ключ NEXT_PUBLIC_YANDEX_MAPS_API_KEY и ограничение по HTTP
+            Referer в{" "}
+            <a
+              href="https://developer.tech.yandex.ru/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              Кабинете разработчика
+            </a>{" "}
+            (там должны быть указаны localhost и 127.0.0.1; изменения вступают в
+            силу через 15 минут).
+          </p>
+        </div>
+      )}
+
+      {/* Карточка выбранного заведения */}
+      {selected && (
+        <div
+          className="absolute bottom-4 left-4 max-w-xs rounded-xl bg-white/95 p-4 shadow-lg backdrop-blur"
+          data-testid="map-popup"
+        >
+          <button
+            type="button"
+            className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
+            onClick={() => setSelected(null)}
+            aria-label="Закрыть"
+          >
+            ✕
+          </button>
+          <h3 className="pr-4 font-semibold text-gray-900">{selected.name}</h3>
+          <p className="mt-1 text-sm text-gray-600">📍 {selected.address}</p>
+          {selected.workHours && (
+            <p className="text-sm text-gray-600">🕒 {selected.workHours}</p>
+          )}
+          {selected.phone && (
+            <p className="text-sm text-gray-600">📞 {selected.phone}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

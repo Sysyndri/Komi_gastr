@@ -1,0 +1,548 @@
+openapi: 3.0.3
+info:
+  title: Гастрономия Коми — REST API
+  description: |
+    API цифровой платформы для популяризации национальной кухни Республики Коми.
+    Возможности: каталог блюд, заведения, мастер-классы, мероприятия,
+    бронирование, поиск и администрирование.
+  version: 1.0.0
+  contact:
+    name: Команда разработки
+    url: https://github.com/gastro-komi
+servers:
+  - url: http://localhost:4000/api
+    description: Локальная разработка
+  - url: /api
+    description: Прод (за reverse-proxy)
+tags:
+  - name: Auth
+    description: Регистрация, вход, обновление токенов
+  - name: Dishes
+    description: Каталог национальных блюд
+  - name: Places
+    description: Заведения с национальной кухней
+  - name: MasterClasses
+    description: Мастер-классы по приготовлению блюд
+  - name: Events
+    description: Гастрономические мероприятия
+  - name: Bookings
+    description: Запись на мастер-классы и мероприятия
+  - name: Search
+    description: Полнотекстовый поиск
+  - name: Admin
+    description: Администрирование (только ADMIN)
+  - name: Stats
+    description: Статистика для дашборда (только ADMIN)
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: string, example: clq1abc123 }
+        email: { type: string, format: email, example: user@example.ru }
+        name: { type: string, example: Иван Петров }
+        role:
+          type: string
+          enum: [USER, MODERATOR, ADMIN]
+        phone: { type: string, nullable: true }
+        isBlocked: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    AuthResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          type: object
+          properties:
+            accessToken: { type: string }
+            refreshToken: { type: string }
+            user:
+              $ref: '#/components/schemas/User'
+    Dish:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string, example: Шаньга }
+        nameKomi: { type: string, nullable: true, example: Шаньга }
+        description: { type: string }
+        history: { type: string, nullable: true }
+        category: { type: string, nullable: true, example: Выпечка }
+        difficulty: { type: string, enum: [EASY, MEDIUM, HARD] }
+        cookingTimeMin: { type: integer }
+        recipe: { type: string, nullable: true }
+        tags: { type: array, items: { type: string } }
+        imageUrl: { type: string, nullable: true }
+        isPinned: { type: boolean }
+    Place:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        address: { type: string }
+        latitude: { type: number, format: float }
+        longitude: { type: number, format: float }
+        phone: { type: string, nullable: true }
+        website: { type: string, nullable: true }
+        workHours: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        imageUrl: { type: string, nullable: true }
+    MasterClass:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        shortDescription: { type: string, nullable: true }
+        description: { type: string }
+        date: { type: string, format: date-time }
+        durationMin: { type: integer }
+        price: { type: number, format: float }
+        maxParticipants: { type: integer }
+        status: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED] }
+        imageUrl: { type: string, nullable: true }
+        dishId: { type: string, nullable: true }
+        placeId: { type: string, nullable: true }
+    Event:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time, nullable: true }
+        location: { type: string }
+        price: { type: number, format: float }
+        maxVisitors: { type: integer, nullable: true }
+        status: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED] }
+        imageUrl: { type: string, nullable: true }
+    Booking:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        masterClassId: { type: string }
+        status: { type: string, enum: [CONFIRMED, CANCELLED, COMPLETED] }
+        createdAt: { type: string, format: date-time }
+    Pagination:
+      type: object
+      properties:
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
+        pages: { type: integer }
+    ApiError:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: object, nullable: true }
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Регистрация нового пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                name: { type: string }
+                phone: { type: string }
+      responses:
+        '201':
+          description: Успешная регистрация, возвращается пара токенов
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400':
+          description: Ошибка валидации
+          content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
+        '409':
+          description: Email уже занят
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Вход по email и паролю
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401':
+          description: Неверный email или пароль
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Обновление пары токенов
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          description: Новая пара токенов
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Текущий пользователь
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Данные авторизованного пользователя
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/User' }
+        '401':
+          description: Токен отсутствует или недействителен
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Выход из системы (отзыв refresh-токенов)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Успешный выход
+  /dishes:
+    get:
+      tags: [Dishes]
+      summary: Список блюд с фильтрацией и пагинацией
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: category, in: query, schema: { type: string } }
+        - { name: difficulty, in: query, schema: { type: string, enum: [EASY, MEDIUM, HARD] } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 12 } }
+      responses:
+        '200':
+          description: Список блюд
+    post:
+      tags: [Dishes]
+      summary: Создание блюда (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          description: Блюдо создано
+        '403':
+          description: Недостаточно прав
+  /dishes/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Dishes]
+      summary: Детали блюда
+      responses:
+        '200':
+          description: Блюдо с заведениями и мастер-классами
+        '404':
+          description: Блюдо не найдено
+    put:
+      tags: [Dishes]
+      summary: Обновление блюда (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Блюдо обновлено
+    delete:
+      tags: [Dishes]
+      summary: Удаление блюда (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Блюдо удалено
+  /places:
+    get:
+      tags: [Places]
+      summary: Список заведений
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Список заведений
+    post:
+      tags: [Places]
+      summary: Создание заведения (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          description: Заведение создано
+  /places/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Places]
+      summary: Детали заведения
+      responses:
+        '200':
+          description: Заведение с блюдами и мастер-классами
+    put:
+      tags: [Places]
+      summary: Обновление заведения (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Обновлено
+    delete:
+      tags: [Places]
+      summary: Удаление заведения (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Удалено
+  /masterclasses:
+    get:
+      tags: [MasterClasses]
+      summary: Список мастер-классов
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: dateFrom, in: query, schema: { type: string, format: date-time } }
+        - { name: dateTo, in: query, schema: { type: string, format: date-time } }
+        - { name: priceMax, in: query, schema: { type: number } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 12 } }
+      responses:
+        '200':
+          description: Список мастер-классов с пагинацией
+    post:
+      tags: [MasterClasses]
+      summary: Создание мастер-класса (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          description: Создан
+  /masterclasses/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [MasterClasses]
+      summary: Детали мастер-класса (с количеством свободных мест)
+      responses:
+        '200':
+          description: Детали
+    put:
+      tags: [MasterClasses]
+      summary: Обновление (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Обновлён
+    delete:
+      tags: [MasterClasses]
+      summary: Удаление (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Удалён
+  /events:
+    get:
+      tags: [Events]
+      summary: Список мероприятий
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 12 } }
+      responses:
+        '200':
+          description: Список мероприятий
+    post:
+      tags: [Events]
+      summary: Создание мероприятия (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          description: Создано
+  /events/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Events]
+      summary: Детали мероприятия
+      responses:
+        '200':
+          description: Детали
+    put:
+      tags: [Events]
+      summary: Обновление (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Обновлено
+    delete:
+      tags: [Events]
+      summary: Удаление (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Удалено
+  /bookings/my:
+    get:
+      tags: [Bookings]
+      summary: Мои записи (МК и мероприятия)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Список записей пользователя
+  /bookings/masterclass/{id}:
+    post:
+      tags: [Bookings]
+      summary: Записаться на мастер-класс
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '201':
+          description: Запись создана
+        '409':
+          description: Вы уже записаны
+        '400':
+          description: Все места заняты / МК завершён
+    delete:
+      tags: [Bookings]
+      summary: Отменить запись на мастер-класс
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Запись отменена
+  /bookings/event/{id}:
+    post:
+      tags: [Bookings]
+      summary: Записаться на мероприятие
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '201':
+          description: Запись создана
+    delete:
+      tags: [Bookings]
+      summary: Отменить запись на мероприятие
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Запись отменена
+  /search:
+    get:
+      tags: [Search]
+      summary: Полнотекстовый поиск по блюдам, МК и мероприятиям
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 10 } }
+      responses:
+        '200':
+          description: Результаты поиска
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: Список пользователей (ADMIN)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: role, in: query, schema: { type: string, enum: [USER, MODERATOR, ADMIN] } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+      responses:
+        '200':
+          description: Список пользователей
+  /admin/users/{id}/role:
+    patch:
+      tags: [Admin]
+      summary: Изменение роли пользователя (ADMIN)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string, enum: [USER, MODERATOR, ADMIN] }
+      responses:
+        '200':
+          description: Роль обновлена
+  /admin/users/{id}/block:
+    patch:
+      tags: [Admin]
+      summary: Блокировка/разблокировка пользователя (ADMIN)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Статус изменён
+  /admin/masterclasses/export:
+    get:
+      tags: [Admin]
+      summary: Экспорт мастер-классов в CSV (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: CSV-файл
+  /admin/bookings/export:
+    get:
+      tags: [Admin]
+      summary: Экспорт бронирований в CSV (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: CSV-файл
+  /stats:
+    get:
+      tags: [Stats]
+      summary: Ключевые метрики платформы (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Статистика для дашборда
+  /stats/users:
+    get:
+      tags: [Stats]
+      summary: Статистика по ролям пользователей (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Статистика по ролям
+  /health:
+    get:
+      tags: [Auth]
+      summary: Проверка доступности сервиса
+      responses:
+        '200':
+          description: Сервис работает

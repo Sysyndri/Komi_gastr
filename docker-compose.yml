@@ -1,0 +1,80 @@
+# ============================================================================
+# Docker Compose — платформа «Гастрономия Коми»
+# Сервисы: postgres, backend, frontend, docs (MkDocs)
+# ============================================================================
+name: gastro-komi
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gastro-komi-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-komi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-komi_password}
+      POSTGRES_DB: ${POSTGRES_DB:-gastro_komi}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-komi} -d ${POSTGRES_DB:-gastro_komi}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: gastro-komi-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-komi}:${POSTGRES_PASSWORD:-komi_password}@postgres:5432/${POSTGRES_DB:-gastro_komi}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change_me_super_secret_32_chars_min}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_refresh_secret}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@gastronomiakomi.ru}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin123!}
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "npx prisma migrate deploy &&
+             node dist/index.js"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api}
+    container_name: gastro-komi-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  docs:
+    build:
+      context: ./docs
+      dockerfile: Dockerfile
+    container_name: gastro-komi-docs
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on: []
+
+volumes:
+  postgres_data:

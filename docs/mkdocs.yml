@@ -1,0 +1,42 @@
+site_name: Гастрономия Коми
+site_description: Документация платформы национальной кухни Республики Коми
+site_url: http://localhost:8000
+repo_url: https://github.com/example/gastro-komi
+repo_name: gastro-komi
+theme:
+  name: material
+  language: ru
+  palette:
+    - scheme: default
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Тёмная тема
+    - scheme: slate
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Светлая тема
+  features:
+    - navigation.tabs
+    - navigation.top
+    - search.suggest
+    - toc.integrate
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - О платформе: index.md
+  - Пользователям: user-guide/index.md
+  - Администраторам: admin-guide/index.md
+  - Разработчикам: developer-guide/index.md
+  - API: api/index.md

@@ -1,0 +1,244 @@
+// ============================================================================
+// Prisma schema — платформа «Гастрономия Коми»
+// ============================================================================
+// Модели:
+//   User          — пользователи платформы (USER / MODERATOR / ADMIN)
+//   RefreshToken  — refresh-токены для обновления JWT-сессий
+//   Dish          — национальные блюда кухни коми
+//   Place         — заведения (рестораны/кафе), где можно попробовать блюда
+//   MasterClass   — мастер-классы по приготовлению блюд
+//   Event         — гастрономические мероприятия и фестивали
+//   Booking       — запись пользователя на мастер-класс
+//   EventBooking  — запись пользователя на мероприятие
+//
+// Отношения:
+//   Dish <-> Place          — многие-ко-многим (блюдо подают в заведении)
+//   Dish -> MasterClass     — мастер-класс посвящён блюду
+//   Place -> MasterClass    — мастер-класс проходит в заведении
+//   User -> Booking         — пользователь записывается на МК
+//   User -> EventBooking    — пользователь записывается на мероприятие
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---- Роли пользователей ---------------------------------------------------
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+// ---- Статус контента ------------------------------------------------------
+enum Status {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+// ---- Сложность приготовления блюда ----------------------------------------
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+// ---- Статус бронирования --------------------------------------------------
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+// ============================================================================
+// User — учётная запись пользователя платформы
+// ============================================================================
+model User {
+  id            String          @id @default(cuid())
+  email         String          @unique
+  passwordHash  String
+  name          String
+  role          Role            @default(USER)
+  phone         String?
+  isBlocked     Boolean         @default(false)
+  avatarUrl     String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  bookings      Booking[]
+  eventBookings EventBooking[]
+  refreshTokens RefreshToken[]
+
+  @@index([role])
+  @@index([createdAt])
+  @@map("users")
+}
+
+// ============================================================================
+// RefreshToken — хранилище refresh-токенов (ротация и отзыв сессий)
+// ============================================================================
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ============================================================================
+// Dish — национальное блюдо кухни коми
+// ============================================================================
+model Dish {
+  id             String     @id @default(cuid())
+  name           String
+  nameKomi       String?
+  description    String
+  history        String?
+  category       String?
+  difficulty     Difficulty @default(MEDIUM)
+  cookingTimeMin Int
+  recipe         String?
+  tags           String[]   @default([])
+  imageUrl       String?
+  isPinned       Boolean    @default(false)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  places        Place[]        @relation("DishPlaces")
+  masterClasses MasterClass[]
+
+  @@index([category])
+  @@index([difficulty])
+  @@index([isPinned])
+  @@map("dishes")
+}
+
+// ============================================================================
+// Place — заведение, где подают национальную кухню
+// ============================================================================
+model Place {
+  id        String   @id @default(cuid())
+  name      String
+  address   String
+  latitude  Float
+  longitude Float
+  phone     String?
+  website   String?
+  workHours String?
+  description String?
+  imageUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dishes        Dish[]        @relation("DishPlaces")
+  masterClasses MasterClass[]
+  events        Event[]
+
+  @@index([latitude, longitude])
+  @@map("places")
+}
+
+// ============================================================================
+// MasterClass — мастер-класс по приготовлению национального блюда
+// ============================================================================
+model MasterClass {
+  id               String   @id @default(cuid())
+  title            String
+  shortDescription String?
+  description      String
+  date             DateTime
+  durationMin      Int
+  price            Decimal  @default(0) @db.Decimal(10, 2)
+  maxParticipants  Int      @default(10)
+  status           Status   @default(ACTIVE)
+  imageUrl         String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  dishId  String?
+  dish    Dish?   @relation(fields: [dishId], references: [id], onDelete: SetNull)
+  placeId String?
+  place   Place?  @relation(fields: [placeId], references: [id], onDelete: SetNull)
+
+  bookings Booking[]
+
+  @@index([date])
+  @@index([status])
+  @@index([dishId])
+  @@map("master_classes")
+}
+
+// ============================================================================
+// Event — гастрономическое мероприятие / фестиваль
+// ============================================================================
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  startDate   DateTime
+  endDate     DateTime?
+  location    String
+  price       Decimal  @default(0) @db.Decimal(10, 2)
+  maxVisitors Int?
+  status      Status   @default(ACTIVE)
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  placeId String?
+  place   Place?   @relation(fields: [placeId], references: [id], onDelete: SetNull)
+
+  eventBookings EventBooking[]
+
+  @@index([startDate])
+  @@index([status])
+  @@map("events")
+}
+
+// ============================================================================
+// Booking — запись пользователя на мастер-класс
+// ============================================================================
+model Booking {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  masterClassId String
+  masterClass   MasterClass   @relation(fields: [masterClassId], references: [id], onDelete: Cascade)
+  status        BookingStatus @default(CONFIRMED)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Пользователь может записаться на один МК только один раз
+  @@unique([userId, masterClassId])
+  @@index([masterClassId])
+  @@map("bookings")
+}
+
+// ============================================================================
+// EventBooking — запись пользователя на мероприятие
+// ============================================================================
+model EventBooking {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  status    BookingStatus @default(CONFIRMED)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([userId, eventId])
+  @@index([eventId])
+  @@map("event_bookings")
+}
