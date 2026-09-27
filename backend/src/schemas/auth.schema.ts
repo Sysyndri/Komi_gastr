@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Role } from '@prisma/client';
+import { emailSchema } from '../utils/validation';
 
 const passwordSchema = z
   .string()
@@ -9,14 +10,18 @@ const passwordSchema = z
   .regex(/\d/, 'Пароль должен содержать цифры');
 
 export const registerSchema = z.object({
-  email: z.string().email('Некорректный email'),
+  email: emailSchema,
   password: passwordSchema,
   name: z.string().min(2, 'Имя должно содержать минимум 2 символа').max(100),
-  phone: z.string().regex(/^\+?[\d\s-]{7,20}$/, 'Некорректный телефон').optional().or(z.literal('')),
+  phone: z
+    .string()
+    .regex(/^\+?[\d\s-]{7,20}$/, 'Некорректный телефон')
+    .optional()
+    .or(z.literal('')),
 });
 
 export const loginSchema = z.object({
-  email: z.string().email('Некорректный email'),
+  email: emailSchema,
   password: z.string().min(1, 'Пароль обязателен'),
 });
 
@@ -26,7 +31,11 @@ export const refreshSchema = z.object({
 
 export const updateUserSchema = z.object({
   name: z.string().min(2).max(100).optional(),
-  phone: z.string().regex(/^\+?[\d\s-]{7,20}$/).optional().nullable(),
+  phone: z
+    .string()
+    .regex(/^\+?[\d\s-]{7,20}$/)
+    .optional()
+    .nullable(),
   password: passwordSchema.optional(),
 });
 

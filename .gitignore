@@ -16,10 +16,16 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/blob-report/
 
-# Environment
+# Environment (реальные секреты не коммитим, шаблоны .env.example — да)
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+.env.docker
+
+# Закрытые заметки разработчиков (демо-аккаунты, секреты) — только локально
+DEVELOPER_NOTES.md
 
 # Python
 .venv/

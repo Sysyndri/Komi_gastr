@@ -23,6 +23,7 @@ export interface MapComponentProps {
 interface SelectedPoint {
   name: string;
   address: string;
+  description?: string | null;
   phone?: string | null;
   workHours?: string | null;
 }
@@ -58,9 +59,12 @@ export function MapComponent({ places, height = 400 }: MapComponentProps) {
           setSelected({
             name: place.name,
             address: place.address,
+            description: place.description,
             phone: place.phone,
             workHours: place.workHours,
           });
+          // Плавно центрируем карту по выбранной точке
+          mapRef.current?.panTo(place.longitude, place.latitude);
         }
       },
     });
@@ -87,7 +91,7 @@ export function MapComponent({ places, height = 400 }: MapComponentProps) {
     }
   }, [places, ready]);
 
-  // Режим без ключа API: список заведений
+  // Режим без ключа API: кликабельный список заведений
   if (!isMapAvailable) {
     return (
       <div
@@ -97,12 +101,44 @@ export function MapComponent({ places, height = 400 }: MapComponentProps) {
       >
         <p className="mb-3 text-sm font-medium text-gray-600">
           🏠 Заведения (без карты — добавьте ключ
-          NEXT_PUBLIC_YANDEX_MAPS_API_KEY):
+          NEXT_PUBLIC_YANDEX_MAPS_API_KEY). Нажмите на заведение, чтобы увидеть
+          описание:
         </p>
         <ul className="space-y-2">
           {places.map((p) => (
-            <li key={p.id} className="text-sm text-gray-700">
-              <span className="font-medium">{p.name}</span> — {p.address}
+            <li key={p.id}>
+              <button
+                type="button"
+                className="w-full cursor-pointer rounded-lg bg-white px-3 py-2 text-left text-sm text-gray-700 shadow-sm transition hover:bg-primary-50"
+                onClick={() =>
+                  setSelected((prev) =>
+                    prev?.name === p.name
+                      ? null
+                      : {
+                          name: p.name,
+                          address: p.address,
+                          description: p.description,
+                          phone: p.phone,
+                          workHours: p.workHours,
+                        },
+                  )
+                }
+                aria-expanded={selected?.name === p.name}
+              >
+                <span className="font-medium">{p.name}</span> — {p.address}
+                {selected?.name === p.name && (
+                  <span
+                    className="mt-2 block text-gray-600"
+                    data-testid="map-fallback-description"
+                  >
+                    {p.description ?? "Описание отсутствует."}
+                    {p.workHours && (
+                      <span className="mt-1 block">🕒 {p.workHours}</span>
+                    )}
+                    {p.phone && <span className="block">📞 {p.phone}</span>}
+                  </span>
+                )}
+              </button>
             </li>
           ))}
         </ul>
@@ -156,19 +192,27 @@ export function MapComponent({ places, height = 400 }: MapComponentProps) {
       {/* Карточка выбранного заведения */}
       {selected && (
         <div
-          className="absolute bottom-4 left-4 max-w-xs rounded-xl bg-white/95 p-4 shadow-lg backdrop-blur"
+          className="absolute bottom-4 left-4 z-10 max-w-xs rounded-xl bg-white/95 p-4 shadow-lg backdrop-blur"
           data-testid="map-popup"
         >
           <button
             type="button"
-            className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
+            className="absolute right-2 top-2 cursor-pointer text-gray-400 hover:text-gray-600"
             onClick={() => setSelected(null)}
             aria-label="Закрыть"
           >
             ✕
           </button>
           <h3 className="pr-4 font-semibold text-gray-900">{selected.name}</h3>
-          <p className="mt-1 text-sm text-gray-600">📍 {selected.address}</p>
+          {selected.description && (
+            <p
+              className="mt-1 text-sm text-gray-600"
+              data-testid="map-popup-description"
+            >
+              {selected.description}
+            </p>
+          )}
+          <p className="mt-2 text-sm text-gray-600">📍 {selected.address}</p>
           {selected.workHours && (
             <p className="text-sm text-gray-600">🕒 {selected.workHours}</p>
           )}

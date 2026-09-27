@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+coverage
+.git
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+test-results
+playwright-report
+blob-report
+tsconfig.tsbuildinfo
+DEVELOPER_NOTES.md

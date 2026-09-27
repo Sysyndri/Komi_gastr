@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { ApiError } from '../utils/ApiError';
 import { JwtPayload, signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/jwt';
 import { env } from '../config/env';
+import { normalizeEmail } from '../utils/validation';
 import { Role } from '@prisma/client';
 
 /**
@@ -12,12 +13,13 @@ import { Role } from '@prisma/client';
 export class AuthService {
   /** Регистрация нового пользователя. */
   static async register(input: { email: string; password: string; name: string; phone?: string }) {
-    const existing = await prisma.user.findUnique({ where: { email: input.email } });
+    const email = normalizeEmail(input.email);
+    const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) throw ApiError.conflict('Пользователь с таким email уже существует');
 
     const passwordHash = await bcrypt.hash(input.password, 10);
     const user = await prisma.user.create({
-      data: { email: input.email, passwordHash, name: input.name, phone: input.phone || null },
+      data: { email, passwordHash, name: input.name, phone: input.phone || null },
       select: { id: true, email: true, name: true, role: true },
     });
 
@@ -26,7 +28,7 @@ export class AuthService {
 
   /** Вход пользователя по email и паролю. */
   static async login(email: string, password: string) {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email: normalizeEmail(email) } });
     if (!user) throw ApiError.unauthorized('Неверный email или пароль');
     if (user.isBlocked) throw ApiError.forbidden('Учётная запись заблокирована');
 
@@ -61,7 +63,10 @@ export class AuthService {
 
   /** Выход — отзыв всех refresh-токенов пользователя. */
   static async logout(userId: string) {
-    await prisma.refreshToken.updateMany({ where: { userId, revoked: false }, data: { revoked: true } });
+    await prisma.refreshToken.updateMany({
+      where: { userId, revoked: false },
+      data: { revoked: true },
+    });
   }
 
   /** Генерирует access + refresh токены и сохраняет refresh в БД. */
@@ -90,7 +95,8 @@ export class AuthService {
     if (!match) return 7 * 24 * 60 * 60 * 1000;
     const n = Number(match[1]);
     const unit = match[2];
-    const mult = unit === 's' ? 1000 : unit === 'm' ? 60_000 : unit === 'h' ? 3_600_000 : 86_400_000;
+    const mult =
+      unit === 's' ? 1000 : unit === 'm' ? 60_000 : unit === 'h' ? 3_600_000 : 86_400_000;
     return n * mult;
   }
 }

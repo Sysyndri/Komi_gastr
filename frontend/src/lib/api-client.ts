@@ -66,6 +66,28 @@ export function getRefreshToken(): string | null {
   return localStorage.getItem(REFRESH_TOKEN_KEY);
 }
 
+/** Ошибки валидации по полям: { email: "Значение должно быть не длиннее..." }. */
+export type FieldErrors = Record<string, string>;
+
+/**
+ * Извлекает полевые ошибки из ответа API.
+ * Zod отдаёт details в виде [{ path, message }], Express-validator — [{ param, msg }].
+ */
+export function extractFieldErrors(error: unknown): FieldErrors {
+  if (!(error instanceof ApiClientError) || !Array.isArray(error.details)) {
+    return {};
+  }
+  const result: FieldErrors = {};
+  for (const item of error.details as Record<string, unknown>[]) {
+    const field = item.path ?? item.param;
+    const message = item.message ?? item.msg;
+    if (typeof field === "string" && typeof message === "string") {
+      result[field] = message;
+    }
+  }
+  return result;
+}
+
 /** Выполняет запрос с автоматической подстановкой токена. */
 export async function apiFetch<T>(
   path: string,

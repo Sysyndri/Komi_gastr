@@ -35,9 +35,11 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl \
     && rm -rf /var/lib/apt/lists/*
 
-# node_modules полностью (нужен prisma CLI для migrate deploy)
+# node_modules полностью (нужен prisma CLI для migrate deploy и ts-node для seed)
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/tsconfig.json ./tsconfig.json
+COPY --from=build /app/tsconfig.seed.json ./tsconfig.seed.json
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/docs ./docs

@@ -1,0 +1,16 @@
+node_modules
+dist
+coverage
+.git
+.env
+.env.*
+!.env.example
+!.env.test
+*.log
+npm-debug.log*
+prisma/*.db
+DEVELOPER_NOTES.md
+frontend
+docs
+docker-compose*.yml
+README.md
