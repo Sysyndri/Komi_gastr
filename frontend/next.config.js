@@ -10,7 +10,11 @@ const remotePatterns = [
 ];
 
 // Заголовки безопасности. CSP собрана так, чтобы не ломать Яндекс.Карты
-// (скрипт api-maps.yandex.ru, стили и шрифты Яндекса) и React Hot Toast.
+// (скрипт api-maps.yandex.ru, чанки JS API с yastatic.net, тайлы с
+// *.maps.yandex.net, стили и шрифты Яндекса) и React Hot Toast.
+// В dev-режиме Next.js/webpack требует 'unsafe-eval' для HMR.
+const isDev = process.env.NODE_ENV !== "production";
+
 const securityHeaders = [
   { key: "X-DNS-Prefetch-Control", value: "on" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -32,11 +36,16 @@ const securityHeaders = [
       "object-src 'none'",
       "frame-ancestors 'self'",
       "form-action 'self'",
-      "script-src 'self' 'unsafe-inline' https://api-maps.yandex.ru https://core-renderer-tiles.maps.yandex.ru",
+      // JS API 3.0: загрузчик с api-maps.yandex.ru, модули/чанки со
+      // cdn api-maps.yandex.ru и yastatic.net (s3.mapsapi).
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://api-maps.yandex.ru https://yastatic.net`,
       "style-src 'self' 'unsafe-inline' https://api-maps.yandex.ru https://yastatic.net",
       "font-src 'self' data: https://yastatic.net",
-      "img-src 'self' data: blob: https://*.yandex.ru https://*.ytimg.com https://upload.wikimedia.org https://en.wikipedia.org",
-      "connect-src 'self' https://api-maps.yandex.ru https://core-renderer-tiles.maps.yandex.ru",
+      // Тайлы карт отдаются с *.maps.yandex.net (векторные/растровые рендереры),
+      // спрайты и иконки — с *.yandex.ru и yastatic.net.
+      "img-src 'self' data: blob: https://*.yandex.ru https://*.yandex.net https://*.ytimg.com https://upload.wikimedia.org https://en.wikipedia.org",
+      // connect-src: загрузка модулей (ymaps3.import) и запросы рендерера тайлов.
+      "connect-src 'self' https://api-maps.yandex.ru https://*.maps.yandex.net",
       "worker-src 'self' blob:",
     ].join("; "),
   },

@@ -9,10 +9,12 @@ services:
     image: postgres:16-alpine
     container_name: gastro-komi-postgres
     restart: unless-stopped
+    # Значения берутся из корневого .env (см. .env.example); небезопасных
+    # значений по умолчанию нет — без настроенного .env стек не поднимется.
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-komi}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-komi_password}
-      POSTGRES_DB: ${POSTGRES_DB:-gastro_komi}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER не задан в .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD не задан в .env}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB не задан в .env}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -21,7 +23,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-komi} -d ${POSTGRES_DB:-gastro_komi}",
+          "pg_isready -U ${POSTGRES_USER:?POSTGRES_USER не задан} -d ${POSTGRES_DB:-gastro_komi}",
         ]
       interval: 5s
       timeout: 5s
@@ -36,14 +38,17 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-komi}:${POSTGRES_PASSWORD:-komi_password}@postgres:5432/${POSTGRES_DB:-gastro_komi}?schema=public
-      JWT_SECRET: ${JWT_SECRET:-change_me_super_secret_32_chars_min}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_refresh_secret}
+      DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER не задан в .env}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD не задан в .env}@postgres:5432/${POSTGRES_DB:-gastro_komi}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET не задан в .env — сгенерируйте стойкий секрет}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET не задан в .env — сгенерируйте стойкий секрет}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
-      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@gastronomiakomi.ru}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin123!}
+      # Учётные данные для `npm run seed` (backend) — только из .env
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:?SEED_ADMIN_EMAIL не задан в .env}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD не задан в .env}
+      SEED_DEMO_EMAIL: ${SEED_DEMO_EMAIL:-}
+      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-}
     ports:
       - "4000:4000"
     depends_on:
@@ -74,7 +79,6 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
-    depends_on: []
 
 volumes:
   postgres_data:

@@ -17,12 +17,18 @@
 ## Быстрый старт (Docker)
 
 ```bash
-# 1. Настройте переменные окружения
+# 1. Скопируйте шаблон и заполните значения (пароли БД, JWT-секреты, seed-аккаунты)
 cp .env.example .env
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"  # для JWT_SECRET
 
 # 2. Запуск всей инфраструктуры
 docker-compose up --build
 ```
+
+Без заполненного `.env` стек не стартует: `docker-compose.yml` не содержит
+значений секретов по умолчанию. Тестовые и административные учётные записи
+в репозитории не публикуются — они заводятся переменными `SEED_*` и
+описаны во внутренних заметках `DEVELOPER_NOTES.md` (файл в git не попадает).
 
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:4000/api
@@ -40,8 +46,9 @@ docker-compose up -d postgres
 # Backend (порт 4000)
 cd backend
 npm install
+cp .env.example .env           # заполните DATABASE_URL, JWT_*, SEED_*
 npx prisma migrate dev
-npm run seed
+npm run seed                   # требует SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD
 npm run dev
 
 # Frontend (порт 3000)

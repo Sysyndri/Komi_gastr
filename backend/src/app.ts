@@ -29,7 +29,28 @@ export function createApp(): Express {
   const app = express();
 
   // --- Базовая безопасность и middleware ---
-  app.use(helmet());
+  // CSP настроена вручную (без upgrade-insecure-requests): API отдаёт JSON,
+  // а /api-docs (Swagger UI) отдаёт HTML с инлайн-скриптом инициализации и
+  // стилями — дефолтная CSP helmet их заблокировала бы. Без
+  // upgrade-insecure-requests страница /api-docs работает и по http://localhost.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:'],
+          fontSrc: ["'self'", 'data:'],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'self'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+        },
+      },
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
   app.use(
     cors({
       origin: env.CORS_ORIGIN.split(',').map((o) => o.trim()),

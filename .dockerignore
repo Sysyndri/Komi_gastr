@@ -11,6 +11,12 @@ npm-debug.log*
 prisma/*.db
 DEVELOPER_NOTES.md
 frontend
-docs
+# Документация не нужна в образах, кроме OpenAPI-спецификации для Swagger UI
+docs/*
+!docs/docs
+docs/docs/*
+!docs/docs/api
+docs/docs/api/*
+!docs/docs/api/openapi.yaml
 docker-compose*.yml
 README.md
