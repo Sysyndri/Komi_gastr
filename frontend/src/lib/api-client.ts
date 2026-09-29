@@ -6,8 +6,14 @@
  */
 import { ApiErrorResponse } from "@/types";
 
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+/**
+ * Базовый адрес API берётся из NEXT_PUBLIC_API_URL (задаётся при сборке
+ * frontend — см. Dockerfile и корневой .env). Значение по умолчанию —
+ * относительный `/api`: оно работает и в стенке «frontend и API за одним
+ * reverse-proxy», и не уводит браузерные запросы на localhost, если
+ * переменная забыта.
+ */
+export const API_URL = process.env.NEXT_PUBLIC_API_URL?.trim() || "/api";
 
 const ACCESS_TOKEN_KEY = "gk_access_token";
 const REFRESH_TOKEN_KEY = "gk_refresh_token";

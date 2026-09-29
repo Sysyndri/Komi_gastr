@@ -9,11 +9,81 @@ const remotePatterns = [
   { protocol: "https", hostname: "core.renderweb.com" },
 ];
 
-// Заголовки безопасности. CSP собрана так, чтобы не ломать Яндекс.Карты
-// (скрипт api-maps.yandex.ru, чанки JS API с yastatic.net, тайлы с
-// *.maps.yandex.net, стили и шрифты Яндекса) и React Hot Toast.
-// В dev-режиме Next.js/webpack требует 'unsafe-eval' для HMR.
+// Заголовки безопасности собираются из публичных адресов, заданных при сборке
+// (NEXT_PUBLIC_API_URL / NEXT_PUBLIC_SITE_URL): политика остаётся корректной и
+// для локальной разработки, и для сервера.
 const isDev = process.env.NODE_ENV !== "production";
+
+/** Origin вида `http://host:port` из абсолютного URL; для относительного — null. */
+function originOf(value) {
+  if (!value) return null;
+  if (value.startsWith("/")) return null; // API за тем же reverse-proxy
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? url.origin
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+const SITE_ORIGIN = originOf(process.env.NEXT_PUBLIC_SITE_URL);
+const API_ORIGIN = originOf(process.env.NEXT_PUBLIC_API_URL);
+
+// HSTS имеет смысл только на HTTPS: на HTTP браузер его игнорирует. Прода
+// доступен по http://85.192.20.218 (домена и сертификата нет), поэтому заголовок
+// отдаём только когда сайт действительно https.
+const isHttps = Boolean(SITE_ORIGIN?.startsWith("https://"));
+
+// Хосты Яндекс.Карт (JS API 3.0): загрузчик и модули — api-maps.yandex.ru и
+// yastatic.net, тайлы/рендерер — *.maps.yandex.net, тайлы и иконки — *.yandex.net.
+const YMAPS_SCRIPTS = ["https://api-maps.yandex.ru", "https://yastatic.net"];
+const YMAPS_CONNECT = [
+  "https://api-maps.yandex.ru",
+  "https://*.maps.yandex.net",
+  "https://yastatic.net",
+];
+const YMAPS_IMG = [
+  "https://*.yandex.ru",
+  "https://*.yandex.net",
+  "https://*.ytimg.com",
+];
+
+/**
+ * CSP фронтенда.
+ *
+ * `upgrade-insecure-requests` намеренно НЕ добавляется: продакшен доступен по
+ * http://85.192.20.218, и эта директива принудительно перевела бы все запросы
+ * на https и сломала загрузку ресурсов. При появлении домена и TLS её нужно
+ * включить вместе с HSTS.
+ */
+const csp = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'self'",
+  "form-action 'self'",
+  // App Router отдаёт инлайн-скрипты RSC-payload, Яндекс.Карты тоже требуют
+  // инлайн-инициализации; 'unsafe-eval' нужен только webpack HMR в dev.
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${YMAPS_SCRIPTS.join(" ")}`,
+  `style-src 'self' 'unsafe-inline' ${YMAPS_SCRIPTS.join(" ")}`,
+  "font-src 'self' data: https://yastatic.net",
+  // img-src: локальные /images, оптимизатор Next (blob), тайлы и иконки Яндекса
+  "img-src 'self' data: blob: " + YMAPS_IMG.join(" "),
+  // connect-src: запросы к API (origin берётся из NEXT_PUBLIC_API_URL; при
+  // относительном /api достаточно 'self') + модули и тайлы Яндекс.Карт
+  "connect-src " +
+    [
+      "'self'",
+      // HMR в dev ходит по WebSocket к dev-серверу
+      ...(isDev ? ["ws://localhost:3000", "ws://127.0.0.1:3000"] : []),
+      ...(API_ORIGIN ? [API_ORIGIN] : []),
+      ...YMAPS_CONNECT,
+    ].join(" "),
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+].join("; ");
 
 const securityHeaders = [
   { key: "X-DNS-Prefetch-Control", value: "on" },
@@ -24,36 +94,24 @@ const securityHeaders = [
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=()",
   },
-  {
-    key: "Strict-Transport-Security",
-    value: "max-age=31536000; includeSubDomains",
-  },
-  {
-    key: "Content-Security-Policy",
-    value: [
-      "default-src 'self'",
-      "base-uri 'self'",
-      "object-src 'none'",
-      "frame-ancestors 'self'",
-      "form-action 'self'",
-      // JS API 3.0: загрузчик с api-maps.yandex.ru, модули/чанки со
-      // cdn api-maps.yandex.ru и yastatic.net (s3.mapsapi).
-      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://api-maps.yandex.ru https://yastatic.net`,
-      "style-src 'self' 'unsafe-inline' https://api-maps.yandex.ru https://yastatic.net",
-      "font-src 'self' data: https://yastatic.net",
-      // Тайлы карт отдаются с *.maps.yandex.net (векторные/растровые рендереры),
-      // спрайты и иконки — с *.yandex.ru и yastatic.net.
-      "img-src 'self' data: blob: https://*.yandex.ru https://*.yandex.net https://*.ytimg.com https://upload.wikimedia.org https://en.wikipedia.org",
-      // connect-src: загрузка модулей (ymaps3.import) и запросы рендерера тайлов.
-      "connect-src 'self' https://api-maps.yandex.ru https://*.maps.yandex.net",
-      "worker-src 'self' blob:",
-    ].join("; "),
-  },
+  { key: "Content-Security-Policy", value: csp },
+  ...(isHttps
+    ? [
+        {
+          key: "Strict-Transport-Security",
+          value: "max-age=31536000; includeSubDomains",
+        },
+      ]
+    : []),
 ];
 
 const nextConfig = {
   reactStrictMode: true,
-  // В прод-сборке не раскрываем версии зависимостей в /_next/static
+  // Минимальный production-образ: сервер собирается в .next/standalone
+  output: "standalone",
+  // Не раскрываем стек технологий (X-Powered-By: Next.js)
+  poweredByHeader: false,
+  // В прод-сборке не отдаём браузерные source maps
   productionBrowserSourceMaps: false,
   images: {
     remotePatterns,

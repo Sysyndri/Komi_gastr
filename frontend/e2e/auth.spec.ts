@@ -62,15 +62,11 @@ test.describe("Аутентификация", () => {
 });
 
 test.describe("Запись на мастер-класс (авторизованный)", () => {
-  test.beforeEach(async ({ page }) => {
-    test.skip(!hasDemoAccount, "Не заданы E2E_DEMO_EMAIL / E2E_DEMO_PASSWORD");
-    await page.goto("/login");
-    await page.getByLabel("Email").fill(DEMO_EMAIL);
-    await page.getByLabel("Пароль").fill(DEMO_PASSWORD);
-    await page
-      .getByTestId("login-form")
-      .getByRole("button", { name: "Войти" })
-      .click();
+  test.beforeEach(async ({ page, request }) => {
+    // Авторизуемся свежесозданным временным аккаунтом: учётные данные
+    // не хранятся в репозитории и не требуют переменных окружения.
+    const email = await registerEphemeralUser(request);
+    await loginVia(page, email, EPHEMERAL_PASSWORD);
     await expect(page).toHaveURL("/");
   });
 

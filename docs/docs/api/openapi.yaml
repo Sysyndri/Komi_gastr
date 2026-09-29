@@ -10,10 +10,12 @@ info:
     name: Команда разработки
     url: https://github.com/gastro-komi
 servers:
+  - url: /api
+    description: Текущий хост (Swagger UI открывается вместе с API)
+  - url: http://85.192.20.218:4000/api
+    description: Продакшен (сервер 85.192.20.218)
   - url: http://localhost:4000/api
     description: Локальная разработка
-  - url: /api
-    description: Прод (за reverse-proxy)
 tags:
   - name: Auth
     description: Регистрация, вход, обновление токенов
@@ -62,7 +64,7 @@ components:
             accessToken: { type: string }
             refreshToken: { type: string }
             user:
-              $ref: '#/components/schemas/User'
+              $ref: "#/components/schemas/User"
     Dish:
       type: object
       properties:
@@ -162,15 +164,19 @@ paths:
                 name: { type: string }
                 phone: { type: string }
       responses:
-        '201':
+        "201":
           description: Успешная регистрация, возвращается пара токенов
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/AuthResponse' }
-        '400':
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "400":
           description: Ошибка валидации
-          content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } }
-        '409':
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ApiError" } },
+            }
+        "409":
           description: Email уже занят
   /auth/login:
     post:
@@ -187,12 +193,12 @@ paths:
                 email: { type: string, format: email }
                 password: { type: string }
       responses:
-        '200':
+        "200":
           description: Успешный вход
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/AuthResponse' }
-        '401':
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "401":
           description: Неверный email или пароль
   /auth/refresh:
     post:
@@ -208,7 +214,7 @@ paths:
               properties:
                 refreshToken: { type: string }
       responses:
-        '200':
+        "200":
           description: Новая пара токенов
   /auth/me:
     get:
@@ -216,7 +222,7 @@ paths:
       summary: Текущий пользователь
       security: [{ bearerAuth: [] }]
       responses:
-        '200':
+        "200":
           description: Данные авторизованного пользователя
           content:
             application/json:
@@ -224,8 +230,8 @@ paths:
                 type: object
                 properties:
                   success: { type: boolean }
-                  data: { $ref: '#/components/schemas/User' }
-        '401':
+                  data: { $ref: "#/components/schemas/User" }
+        "401":
           description: Токен отсутствует или недействителен
   /auth/logout:
     post:
@@ -233,7 +239,7 @@ paths:
       summary: Выход из системы (отзыв refresh-токенов)
       security: [{ bearerAuth: [] }]
       responses:
-        '200':
+        "200":
           description: Успешный выход
   /dishes:
     get:
@@ -242,20 +248,24 @@ paths:
       parameters:
         - { name: search, in: query, schema: { type: string } }
         - { name: category, in: query, schema: { type: string } }
-        - { name: difficulty, in: query, schema: { type: string, enum: [EASY, MEDIUM, HARD] } }
+        - {
+            name: difficulty,
+            in: query,
+            schema: { type: string, enum: [EASY, MEDIUM, HARD] },
+          }
         - { name: page, in: query, schema: { type: integer, default: 1 } }
         - { name: limit, in: query, schema: { type: integer, default: 12 } }
       responses:
-        '200':
+        "200":
           description: Список блюд
     post:
       tags: [Dishes]
       summary: Создание блюда (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '201':
+        "201":
           description: Блюдо создано
-        '403':
+        "403":
           description: Недостаточно прав
   /dishes/{id}:
     parameters:
@@ -264,23 +274,23 @@ paths:
       tags: [Dishes]
       summary: Детали блюда
       responses:
-        '200':
+        "200":
           description: Блюдо с заведениями и мастер-классами
-        '404':
+        "404":
           description: Блюдо не найдено
     put:
       tags: [Dishes]
       summary: Обновление блюда (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '200':
+        "200":
           description: Блюдо обновлено
     delete:
       tags: [Dishes]
       summary: Удаление блюда (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '200':
+        "200":
           description: Блюдо удалено
   /places:
     get:
@@ -289,14 +299,14 @@ paths:
       parameters:
         - { name: search, in: query, schema: { type: string } }
       responses:
-        '200':
+        "200":
           description: Список заведений
     post:
       tags: [Places]
       summary: Создание заведения (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '201':
+        "201":
           description: Заведение создано
   /places/{id}:
     parameters:
@@ -305,21 +315,21 @@ paths:
       tags: [Places]
       summary: Детали заведения
       responses:
-        '200':
+        "200":
           description: Заведение с блюдами и мастер-классами
     put:
       tags: [Places]
       summary: Обновление заведения (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '200':
+        "200":
           description: Обновлено
     delete:
       tags: [Places]
       summary: Удаление заведения (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '200':
+        "200":
           description: Удалено
   /masterclasses:
     get:
@@ -327,20 +337,28 @@ paths:
       summary: Список мастер-классов
       parameters:
         - { name: search, in: query, schema: { type: string } }
-        - { name: dateFrom, in: query, schema: { type: string, format: date-time } }
-        - { name: dateTo, in: query, schema: { type: string, format: date-time } }
+        - {
+            name: dateFrom,
+            in: query,
+            schema: { type: string, format: date-time },
+          }
+        - {
+            name: dateTo,
+            in: query,
+            schema: { type: string, format: date-time },
+          }
         - { name: priceMax, in: query, schema: { type: number } }
         - { name: page, in: query, schema: { type: integer, default: 1 } }
         - { name: limit, in: query, schema: { type: integer, default: 12 } }
       responses:
-        '200':
+        "200":
           description: Список мастер-классов с пагинацией
     post:
       tags: [MasterClasses]
       summary: Создание мастер-класса (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '201':
+        "201":
           description: Создан
   /masterclasses/{id}:
     parameters:
@@ -349,21 +367,21 @@ paths:
       tags: [MasterClasses]
       summary: Детали мастер-класса (с количеством свободных мест)
       responses:
-        '200':
+        "200":
           description: Детали
     put:
       tags: [MasterClasses]
       summary: Обновление (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '200':
+        "200":
           description: Обновлён
     delete:
       tags: [MasterClasses]
       summary: Удаление (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '200':
+        "200":
           description: Удалён
   /events:
     get:
@@ -374,14 +392,14 @@ paths:
         - { name: page, in: query, schema: { type: integer, default: 1 } }
         - { name: limit, in: query, schema: { type: integer, default: 12 } }
       responses:
-        '200':
+        "200":
           description: Список мероприятий
     post:
       tags: [Events]
       summary: Создание мероприятия (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '201':
+        "201":
           description: Создано
   /events/{id}:
     parameters:
@@ -390,21 +408,21 @@ paths:
       tags: [Events]
       summary: Детали мероприятия
       responses:
-        '200':
+        "200":
           description: Детали
     put:
       tags: [Events]
       summary: Обновление (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '200':
+        "200":
           description: Обновлено
     delete:
       tags: [Events]
       summary: Удаление (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '200':
+        "200":
           description: Удалено
   /bookings/my:
     get:
@@ -412,7 +430,7 @@ paths:
       summary: Мои записи (МК и мероприятия)
       security: [{ bearerAuth: [] }]
       responses:
-        '200':
+        "200":
           description: Список записей пользователя
   /bookings/masterclass/{id}:
     post:
@@ -422,11 +440,11 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
-        '201':
+        "201":
           description: Запись создана
-        '409':
+        "409":
           description: Вы уже записаны
-        '400':
+        "400":
           description: Все места заняты / МК завершён
     delete:
       tags: [Bookings]
@@ -435,7 +453,7 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
-        '200':
+        "200":
           description: Запись отменена
   /bookings/event/{id}:
     post:
@@ -445,7 +463,7 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
-        '201':
+        "201":
           description: Запись создана
     delete:
       tags: [Bookings]
@@ -454,7 +472,7 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
-        '200':
+        "200":
           description: Запись отменена
   /search:
     get:
@@ -464,7 +482,7 @@ paths:
         - { name: q, in: query, required: true, schema: { type: string } }
         - { name: limit, in: query, schema: { type: integer, default: 10 } }
       responses:
-        '200':
+        "200":
           description: Результаты поиска
   /admin/users:
     get:
@@ -473,10 +491,14 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters:
         - { name: search, in: query, schema: { type: string } }
-        - { name: role, in: query, schema: { type: string, enum: [USER, MODERATOR, ADMIN] } }
+        - {
+            name: role,
+            in: query,
+            schema: { type: string, enum: [USER, MODERATOR, ADMIN] },
+          }
         - { name: page, in: query, schema: { type: integer, default: 1 } }
       responses:
-        '200':
+        "200":
           description: Список пользователей
   /admin/users/{id}/role:
     patch:
@@ -495,7 +517,7 @@ paths:
               properties:
                 role: { type: string, enum: [USER, MODERATOR, ADMIN] }
       responses:
-        '200':
+        "200":
           description: Роль обновлена
   /admin/users/{id}/block:
     patch:
@@ -505,7 +527,7 @@ paths:
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
-        '200':
+        "200":
           description: Статус изменён
   /admin/masterclasses/export:
     get:
@@ -513,7 +535,7 @@ paths:
       summary: Экспорт мастер-классов в CSV (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '200':
+        "200":
           description: CSV-файл
   /admin/bookings/export:
     get:
@@ -521,7 +543,7 @@ paths:
       summary: Экспорт бронирований в CSV (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '200':
+        "200":
           description: CSV-файл
   /stats:
     get:
@@ -529,7 +551,7 @@ paths:
       summary: Ключевые метрики платформы (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '200':
+        "200":
           description: Статистика для дашборда
   /stats/users:
     get:
@@ -537,12 +559,12 @@ paths:
       summary: Статистика по ролям пользователей (ADMIN)
       security: [{ bearerAuth: [] }]
       responses:
-        '200':
+        "200":
           description: Статистика по ролям
   /health:
     get:
       tags: [Auth]
       summary: Проверка доступности сервиса
       responses:
-        '200':
+        "200":
           description: Сервис работает

@@ -1,8 +1,24 @@
 # ============================================================================
 # Docker Compose — платформа «Гастрономия Коми»
 # Сервисы: postgres, backend, frontend, docs (MkDocs)
+#
+# Все публичные адреса берутся из корневого .env (см. .env.example).
+# Для продакшена на сервере 85.192.20.218 достаточно задать:
+#   SITE_URL=http://85.192.20.218:3000
+#   API_PUBLIC_URL=http://85.192.20.218:4000/api
+#   NEXT_PUBLIC_API_URL=http://85.192.20.218:4000/api
+#   CORS_ORIGIN=http://85.192.20.218:3000
+# NEXT_PUBLIC_* вшиваются в сборку frontend на этапе build: при их изменении
+# обязательна пересборка — docker compose build --no-cache frontend
 # ============================================================================
 name: gastro-komi
+
+# Ограничение логов: json-file без лимита размера со временем съест диск сервера.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   postgres:
@@ -15,10 +31,14 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER не задан в .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD не задан в .env}
       POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB не задан в .env}
+    # Порт БД публикуем только на loopback — наружу она закрыта файрволом,
+    # но и с самого хоста доступна через 127.0.0.1 (psql, бэкапы).
+    # Между контейнерами доступ идёт по внутренней сети (хост `postgres`).
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    logging: *default-logging
     healthcheck:
       test:
         [
@@ -43,17 +63,41 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET не задан в .env — сгенерируйте стойкий секрет}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
-      # Учётные данные для `npm run seed` (backend) — только из .env
-      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:?SEED_ADMIN_EMAIL не задан в .env}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD не задан в .env}
+      # Разрешённые origin для CORS = публичный URL фронтенда (см. .env)
+      CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN не задан в .env — публичный URL фронтенда}
+      # Публичный URL этого API: используется Swagger UI и заголовками CSP
+      API_PUBLIC_URL: ${API_PUBLIC_URL:?API_PUBLIC_URL не задан в .env — публичный URL API}
+      # 1 — API работает за reverse-proxy (nginx): доверять X-Forwarded-For
+      # (иначе rate-limit слепнет и все ходы придут с одного IP)
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      # Swagger UI (/api-docs) в production по умолчанию выключен
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      # Учётные данные для `npm run seed` (backend) — только из .env.
+      # Не обязательны для запуска: seed проверяет их сам.
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
       SEED_DEMO_EMAIL: ${SEED_DEMO_EMAIL:-}
       SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-}
     ports:
-      - "4000:4000"
+      - "${BACKEND_BIND:-0.0.0.0}:${BACKEND_PORT:-4000}:4000"
     depends_on:
       postgres:
         condition: service_healthy
+    logging: *default-logging
+    # SIGTERM → graceful shutdown (см. backend/src/index.ts)
+    stop_grace_period: 20s
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
     command: >
       sh -c "npx prisma migrate deploy &&
              node dist/index.js"
@@ -63,13 +107,21 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api}
+        # Вшиваются в JS-бандл на этапе сборки — менять только с --no-cache
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL не задан в .env — публичный URL API}
+        NEXT_PUBLIC_SITE_URL: ${SITE_URL:?SITE_URL не задан в .env — публичный URL фронтенда}
+        NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
+        NEXT_PUBLIC_SITE_NAME: ${SITE_NAME:-Гастрономия Коми}
+        NEXT_PUBLIC_SITE_TAGLINE: ${SITE_TAGLINE:-}
     container_name: gastro-komi-frontend
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    logging: *default-logging
+    stop_grace_period: 15s
 
   docs:
     build:
@@ -77,8 +129,10 @@ services:
       dockerfile: Dockerfile
     container_name: gastro-komi-docs
     restart: unless-stopped
+    # Документация — внутренний инструмент: по умолчанию доступна лишь с сервера
     ports:
-      - "8000:8000"
+      - "${DOCS_BIND:-127.0.0.1}:${DOCS_PORT:-8000}:8000"
+    logging: *default-logging
 
 volumes:
   postgres_data:

@@ -19,7 +19,6 @@ import { bookingsRouter } from './routes/bookings.routes';
 import { searchRouter } from './routes/search.routes';
 import { adminRouter } from './routes/admin.routes';
 import { statsRouter } from './routes/stats.routes';
-import { logger } from './lib/logger';
 
 /**
  * Создаёт и настраивает Express-приложение.
@@ -28,11 +27,23 @@ import { logger } from './lib/logger';
 export function createApp(): Express {
   const app = express();
 
+  // За nginx (или другим reverse proxy) нужен trust proxy: иначе rate limiter
+  // считает все запросы с одного адреса 127.0.0.1, а протокол в куках/redirect
+  // определяется неверно. Включается только явно (TRUST_PROXY=true).
+  if (env.trustProxy) {
+    app.set('trust proxy', 1);
+  }
+  // Корректный Host в заголовках за прокси (иначе Express может вернуть 400
+  // «Trust proxy misconfiguration» на нестандартных портах).
+  app.disable('x-powered-by');
+
   // --- Базовая безопасность и middleware ---
   // CSP настроена вручную (без upgrade-insecure-requests): API отдаёт JSON,
   // а /api-docs (Swagger UI) отдаёт HTML с инлайн-скриптом инициализации и
   // стилями — дефолтная CSP helmet их заблокировала бы. Без
   // upgrade-insecure-requests страница /api-docs работает и по http://localhost.
+  // HSTS имеет смысл только когда наружу отдаётся HTTPS (например, TLS на
+  // балансировщике) — иначе браузеры получают бесполезный заголовок.
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -49,19 +60,26 @@ export function createApp(): Express {
         },
       },
       crossOriginEmbedderPolicy: false,
+      // Ресурсы API (фото блюд) подключаются со страницы фронтенда на другом
+      // origin — политика same-origin запретила бы такую встраиваемую загрузку.
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      hsts: env.isSecure ? undefined : false,
     }),
   );
   app.use(
     cors({
-      origin: env.CORS_ORIGIN.split(',').map((o) => o.trim()),
+      origin: env.CORS_ORIGINS,
       credentials: true,
     }),
   );
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true }));
+  // Ответы API (списки блюд, поиск) сжимаются — экономия трафика в 5-10 раз.
   app.use(compression());
   if (env.NODE_ENV !== 'test') {
-    app.use(morgan('dev'));
+    // В production — общий формат логов (IP, дата, статус, длительность),
+    // в разработке — короткий «dev»-вывод.
+    app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
   }
 
   // --- Общий rate limiter для API ---
@@ -73,22 +91,26 @@ export function createApp(): Express {
   });
 
   // --- Документация OpenAPI (Swagger UI) ---
-  const possiblePaths = [
-    path.join(__dirname, '../docs/api/openapi.yaml'), // dev (src)
-    path.join(__dirname, '../../docs/api/openapi.yaml'), // prod (dist) / root docs
-    path.join(process.cwd(), 'docs/api/openapi.yaml'), // Docker (/app/docs/api)
-    path.join(process.cwd(), '../docs/api/openapi.yaml'), // локальный запуск из backend/
-  ];
-  const yamlPath = possiblePaths.find((p) => {
-    try {
-      return require('fs').existsSync(p);
-    } catch {
-      return false;
+  // В production Swagger UI выключен (SWAGGER_ENABLED=false): публичная схема
+  // API упрощает подбор параметров для атак.
+  if (env.swaggerEnabled) {
+    const possiblePaths = [
+      path.join(__dirname, '../docs/api/openapi.yaml'), // dev (src)
+      path.join(__dirname, '../../docs/api/openapi.yaml'), // prod (dist) / root docs
+      path.join(process.cwd(), 'docs/api/openapi.yaml'), // Docker (/app/docs/api)
+      path.join(process.cwd(), '../docs/api/openapi.yaml'), // локальный запуск из backend/
+    ];
+    const yamlPath = possiblePaths.find((p) => {
+      try {
+        return require('fs').existsSync(p);
+      } catch {
+        return false;
+      }
+    });
+    if (yamlPath) {
+      const swaggerDocument = YAML.load(yamlPath);
+      app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
     }
-  });
-  if (yamlPath) {
-    const swaggerDocument = YAML.load(yamlPath);
-    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
   }
 
   // --- REST API маршруты ---
@@ -105,17 +127,6 @@ export function createApp(): Express {
   // --- Обработка ошибок ---
   app.use(notFound);
   app.use(errorHandler);
-
-  app.use(
-    (err: unknown, _req: express.Request, _res: express.Response, next: express.NextFunction) => {
-      if (err instanceof SyntaxError) {
-        logger.warn('Некорректный JSON в теле запроса');
-        next();
-        return;
-      }
-      next(err);
-    },
-  );
 
   return app;
 }
