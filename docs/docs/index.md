@@ -23,7 +23,7 @@
 
 - **Backend:** Node.js, Express, Prisma ORM, PostgreSQL, JWT-аутентификация, Swagger.
 - **Frontend:** Next.js 14, React 18, TypeScript, TailwindCSS, TanStack Query.
-- **Инфраструктура:** Docker Compose, GitHub Actions (CI/CD), Playwright (E2E).
+- **Инфраструктура:** Docker Compose, GitHub Actions (CI), Playwright (E2E).
 
 ## Структура монорепозитория
 
@@ -38,13 +38,16 @@
 ## Быстрый старт
 
 ```bash
-cp .env.example .env
-docker-compose up --build
+cp .env.example .env     # заполнить секреты и адреса (локально ALLOW_LOCALHOST=true)
+bash deploy.sh           # сборка → запуск → миграции → наполнение базы
 ```
 
 | Сервис | Адрес |
 |---|---|
 | Frontend | http://localhost:3000 |
 | Backend API | http://localhost:4000/api |
-| Swagger UI | http://localhost:4000/api-docs |
+| Swagger UI | http://localhost:4000/api-docs (только при `SWAGGER_ENABLED=true`) |
 | Документация | http://localhost:8000 |
+
+Стек одинаков — и локально, и на сервере: отличается только блок «Публичные
+адреса» в `.env`. Подробнее — в разделе «Разработчикам».

@@ -15,6 +15,12 @@ let server: Server | undefined;
 async function main() {
   const app = createApp();
 
+  if (env.NODE_ENV === 'production' && env.allowLocalhost) {
+    logger.warn(
+      'ALLOW_LOCALHOST=true: публичные адреса указывают на localhost — это допустимо только для локального стенда',
+    );
+  }
+
   // Проверяем подключение к БД до начала обслуживания запросов
   try {
     await prisma.$connect();

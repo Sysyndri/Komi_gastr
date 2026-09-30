@@ -2,10 +2,31 @@ import { NextFunction, Request, Response } from 'express';
 import { verifyAccessToken } from '../utils/jwt';
 import { ApiError } from '../utils/ApiError';
 import { prisma } from '../lib/prisma';
+import { ACCESS_TOKEN_COOKIE } from '../utils/authCookies';
+
+/**
+ * Достаёт access-токен из cookie, которую backend выставляет при входе.
+ * Нужна как запасной источник токена: браузер присылает её автоматически,
+ * поэтому защищённые страницы фронтенда и SSR-запросы работают без
+ * ручной подстановки заголовка Authorization.
+ */
+function tokenFromCookie(cookieHeader: string | undefined): string | null {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const separator = part.indexOf('=');
+    if (separator === -1) continue;
+    const name = part.slice(0, separator).trim();
+    if (name !== ACCESS_TOKEN_COOKIE) continue;
+    const value = part.slice(separator + 1).trim();
+    return value ? decodeURIComponent(value) : null;
+  }
+  return null;
+}
 
 /**
  * AuthMiddleware — проверяет наличие и валидность JWT access-токена.
- * Токен передаётся в заголовке Authorization: Bearer <token>.
+ * Токен берётся из заголовка Authorization: Bearer <token>, а если заголовка
+ * нет — из HttpOnly cookie (gk_access_token).
  * Помещает декодированные данные пользователя в req.user.
  *
  * @param required если false — токен опционален (для публичных эндпоинтов).
@@ -14,7 +35,9 @@ export function authenticate(required = true) {
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
       const header = req.headers.authorization;
-      const token = header?.startsWith('Bearer ') ? header.slice(7) : null;
+      const token = header?.startsWith('Bearer ')
+        ? header.slice(7)
+        : tokenFromCookie(req.headers.cookie);
 
       if (!token) {
         if (required) throw ApiError.unauthorized();

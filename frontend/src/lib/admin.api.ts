@@ -1,12 +1,18 @@
 /**
  * API-методы поиска и общих ресурсов.
  */
-import { apiFetch } from './api-client';
-import { ApiResponse, Place, SearchResults, StatsResponse, User } from '@/types';
+import { apiFetch, API_URL, getAccessToken } from "./api-client";
+import {
+  ApiResponse,
+  Place,
+  SearchResults,
+  StatsResponse,
+  User,
+} from "@/types";
 
 export const placesApi = {
   async list(search?: string): Promise<Place[]> {
-    const qs = search ? `?search=${encodeURIComponent(search)}` : '';
+    const qs = search ? `?search=${encodeURIComponent(search)}` : "";
     const res = await apiFetch<ApiResponse<Place[]>>(`/places${qs}`);
     return res.data;
   },
@@ -28,7 +34,7 @@ export const searchApi = {
 
 export const statsApi = {
   async getStats(): Promise<StatsResponse> {
-    const res = await apiFetch<ApiResponse<StatsResponse>>('/stats');
+    const res = await apiFetch<ApiResponse<StatsResponse>>("/stats");
     return res.data;
   },
 };
@@ -38,36 +44,62 @@ export interface AdminUser extends User {
 }
 
 export const adminApi = {
-  async listUsers(params: { search?: string; role?: string; page?: number; limit?: number } = {}) {
+  async listUsers(
+    params: {
+      search?: string;
+      role?: string;
+      page?: number;
+      limit?: number;
+    } = {},
+  ) {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== '') qs.set(k, String(v));
+      if (v !== undefined && v !== "") qs.set(k, String(v));
     });
-    const res = await apiFetch<ApiResponse<{ items: AdminUser[]; total: number; page: number; pages: number }>>(
-      `/admin/users?${qs.toString()}`,
+    const res = await apiFetch<
+      ApiResponse<{
+        items: AdminUser[];
+        total: number;
+        page: number;
+        pages: number;
+      }>
+    >(`/admin/users?${qs.toString()}`);
+    return res.data;
+  },
+
+  async changeRole(
+    id: string,
+    role: string,
+  ): Promise<{ id: string; role: string }> {
+    const res = await apiFetch<ApiResponse<{ id: string; role: string }>>(
+      `/admin/users/${id}/role`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+      },
     );
     return res.data;
   },
 
-  async changeRole(id: string, role: string): Promise<{ id: string; role: string }> {
-    const res = await apiFetch<ApiResponse<{ id: string; role: string }>>(`/admin/users/${id}/role`, {
-      method: 'PATCH',
-      body: JSON.stringify({ role }),
-    });
-    return res.data;
-  },
-
   async toggleBlock(id: string): Promise<{ id: string; isBlocked: boolean }> {
-    const res = await apiFetch<ApiResponse<{ id: string; isBlocked: boolean }>>(`/admin/users/${id}/block`, {
-      method: 'PATCH',
-    });
+    const res = await apiFetch<ApiResponse<{ id: string; isBlocked: boolean }>>(
+      `/admin/users/${id}/block`,
+      {
+        method: "PATCH",
+      },
+    );
     return res.data;
   },
 
   async exportMasterClasses(): Promise<string> {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/masterclasses/export`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('gk_access_token')}` },
+    const token = getAccessToken();
+    const res = await fetch(`${API_URL}/admin/masterclasses/export`, {
+      credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
+    if (!res.ok) {
+      throw new Error(`Не удалось получить файл (HTTP ${res.status})`);
+    }
     return res.text();
   },
 };

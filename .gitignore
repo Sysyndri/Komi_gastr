@@ -16,7 +16,11 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/blob-report/
 
-# Environment (реальные секреты не коммитим, шаблоны .env.example — да
+# Environment: реальные секреты не коммитим, шаблоны .env.example остаются
+.env
+.env.*
+!.env.example
+!.env.test
 
 # Закрытые заметки разработчиков (демо-аккаунты, секреты) — только локально
 DEVELOPER_NOTES.md

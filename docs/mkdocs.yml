@@ -1,8 +1,8 @@
 site_name: Гастрономия Коми
 site_description: Документация платформы национальной кухни Республики Коми
 site_url: http://localhost:8000
-repo_url: https://github.com/example/gastro-komi
-repo_name: gastro-komi
+repo_url: https://github.com/Sysyndri/Komi_gastr
+repo_name: Sysyndri/Komi_gastr
 theme:
   name: material
   language: ru

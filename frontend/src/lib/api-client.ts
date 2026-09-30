@@ -42,29 +42,34 @@ export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
-/** Записывает cookie (для серверного middleware). */
-function setCookie(name: string, value: string): void {
+/**
+ * Удаляет cookie, которые выставлял старый клиент (до перехода на HttpOnly).
+ * Cookie с access-токеном теперь ставит backend и защищает флагом HttpOnly:
+ * записать или удалить её из JavaScript нельзя, поэтому вызов здесь — no-op
+ * для актуальной схемы и очистка наследия прежних версий.
+ */
+function clearLegacyCookies(): void {
   if (typeof document === "undefined") return;
-  document.cookie = `${name}=${value}; path=/; SameSite=Lax`;
+  for (const name of [ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, "gk_user_role"]) {
+    document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+  }
 }
 
-function clearCookie(name: string): void {
-  if (typeof document === "undefined") return;
-  document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-}
-
+/**
+ * Токены хранятся в localStorage и уходят в заголовке Authorization.
+ * Параллельно backend выставляет HttpOnly cookie с access-токеном — её читает
+ * серверный middleware (проверка доступа к /profile и /admin).
+ */
 export function setTokens(access: string, refresh: string): void {
   localStorage.setItem(ACCESS_TOKEN_KEY, access);
   localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
-  setCookie(ACCESS_TOKEN_KEY, access);
 }
 
 export function clearTokens(): void {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem("gk_user_role");
-  clearCookie(ACCESS_TOKEN_KEY);
-  clearCookie("gk_user_role");
+  clearLegacyCookies();
 }
 
 export function getRefreshToken(): string | null {
@@ -115,7 +120,12 @@ export async function apiFetch<T>(
 
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, { ...options, headers });
+    res = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+      // Cookie сессии (HttpOnly) нужна и при абсолютном адресе API
+      credentials: "include",
+    });
   } catch {
     throw new ApiClientError(0, "NETWORK_ERROR", "Нет соединения с сервером");
   }
@@ -152,9 +162,11 @@ export async function tryRefresh(): Promise<boolean> {
   if (!refreshToken) return false;
 
   try {
+    // Ответ обновляет и пару токенов в localStorage, и cookie сессии
     const res = await fetch(`${API_URL}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ refreshToken }),
     });
     if (!res.ok) {

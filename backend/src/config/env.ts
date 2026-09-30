@@ -36,6 +36,19 @@ const envSchema = z
     TRUST_PROXY: z.string().default(''),
     /** Доступность Swagger UI. По умолчанию выключена в production. */
     SWAGGER_ENABLED: z.string().default(''),
+    /**
+     * Разрешить localhost в публичных адресах при NODE_ENV=production.
+     * Нужно локальному прогону production-сборки (docker compose на своей
+     * машине): ALLOW_LOCALHOST=true. На реальном сервере переменную оставляют
+     * пустой — тогда проверки публичных адресов работают в полную силу.
+     */
+    ALLOW_LOCALHOST: z.string().default(''),
+    /** Общий лимит запросов: окно (мс) и число на IP. См. middleware/rateLimiter.ts */
+    RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+    RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+    /** Лимит на вход/регистрацию — защита от брутфорса. */
+    RATE_LIMIT_AUTH_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+    RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(10),
     SEED_ADMIN_EMAIL: z.string().email().optional(),
     SEED_ADMIN_PASSWORD: z.string().optional(),
   })
@@ -45,16 +58,24 @@ const envSchema = z
     const fail = (path: string, message: string) =>
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
 
-    if (!val.CORS_ORIGIN || LOCAL_HOST_RE.test(val.CORS_ORIGIN)) {
-      fail(
-        'CORS_ORIGIN',
-        'в production нужен публичный адрес фронтенда, например http://85.192.20.218:3000 (localhost запрещён)',
-      );
-    }
-    if (!val.API_PUBLIC_URL) {
-      fail('API_PUBLIC_URL', 'в production задайте публичный адрес API, например http://85.192.20.218:4000/api');
-    } else if (LOCAL_HOST_RE.test(val.API_PUBLIC_URL)) {
-      fail('API_PUBLIC_URL', 'в production адрес API не может быть локальным (localhost / 127.0.0.1)');
+    if (!truthy(val.ALLOW_LOCALHOST)) {
+      if (!val.CORS_ORIGIN || LOCAL_HOST_RE.test(val.CORS_ORIGIN)) {
+        fail(
+          'CORS_ORIGIN',
+          'в production нужен публичный адрес фронтенда, например http://85.192.20.218:3000 (localhost запрещён; для локального docker compose задайте ALLOW_LOCALHOST=true)',
+        );
+      }
+      if (!val.API_PUBLIC_URL) {
+        fail(
+          'API_PUBLIC_URL',
+          'в production задайте публичный адрес API, например http://85.192.20.218:4000/api',
+        );
+      } else if (LOCAL_HOST_RE.test(val.API_PUBLIC_URL)) {
+        fail(
+          'API_PUBLIC_URL',
+          'в production адрес API не может быть локальным (localhost / 127.0.0.1); для локального docker compose задайте ALLOW_LOCALHOST=true',
+        );
+      }
     }
     if (val.JWT_REFRESH_SECRET.length < 32) {
       fail('JWT_REFRESH_SECRET', 'в production секрет refresh-токенов должен быть не короче 32 символов');
@@ -87,6 +108,8 @@ export const env = {
     .filter(Boolean),
   /** API за reverse-proxy — брать клиентский IP из X-Forwarded-For. */
   trustProxy: truthy(raw.TRUST_PROXY),
+  /** Публичные адреса указывают на localhost (локальный стенд). */
+  allowLocalhost: truthy(raw.ALLOW_LOCALHOST),
   /** Публичный адрес отдаётся по HTTPS (включает HSTS и secure-куки). */
   isSecure: raw.API_PUBLIC_URL.startsWith('https://'),
   /**

@@ -5,6 +5,7 @@ import compression from 'compression';
 import morgan from 'morgan';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
+import { existsSync } from 'fs';
 import path from 'path';
 
 import { env } from './config/env';
@@ -102,7 +103,7 @@ export function createApp(): Express {
     ];
     const yamlPath = possiblePaths.find((p) => {
       try {
-        return require('fs').existsSync(p);
+        return existsSync(p);
       } catch {
         return false;
       }

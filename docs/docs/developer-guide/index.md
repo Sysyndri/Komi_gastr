@@ -11,14 +11,14 @@
 ### 1. База данных
 
 ```bash
-docker-compose up -d postgres
+docker compose up -d postgres
 ```
 
 ### 2. Backend
 
 ```bash
 cd backend
-cp .env.example .env        # при необходимости
+cp .env.example .env        # DATABASE_URL, JWT_*, SEED_* (см. .env.example)
 npm install
 npx prisma migrate dev
 npm run seed
@@ -34,11 +34,17 @@ npm install
 npm run dev                 # http://localhost:3000
 ```
 
+Запросы браузера уходят на `/api` (тот же origin), а `src/middleware.ts`
+проксирует их на backend по `API_INTERNAL_URL` — по умолчанию
+`http://localhost:4000/api`. Поэтому CORS в разработке не нужен и поведение
+совпадает с docker-стендом.
+
 Переменные окружения фронтенда:
 
 | Переменная                        | Описание                                                                                                                                                                                                                                                                                                           |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `NEXT_PUBLIC_API_URL`             | Базовый URL API. Значение подшивается **при сборке** образа фронтенда: в `docker-compose.yml` это `/api` (запросы уходят на тот же хост, порт 4000), поэтому один и тот же образ работает и на `localhost`, и на сервере. Для локального `npm run dev` укажите `http://localhost:4000/api` в `frontend/.env.local` |
+| `NEXT_PUBLIC_API_URL`             | Базовый URL API. Всегда относительный `/api`: браузер обращается к тому же origin, а `src/middleware.ts` проксирует запрос на backend (`API_INTERNAL_URL`). Один и тот же образ работает и локально, и на сервере. Для локального `npm run dev` значение то же — `/api` из `frontend/.env` |
+| `API_INTERNAL_URL`                | Внутренний адрес backend для прокси middleware: локально `http://localhost:4000/api`, в `docker-compose.yml` — `http://backend:4000/api` |
 | `NEXT_PUBLIC_YANDEX_MAPS_API_KEY` | Ключ JS API Яндекс.Карт 3.0 (получить в [Кабинете разработчика](https://developer.tech.yandex.com/), сервис «JavaScript API и HTTP Геокодер»). Без ключа карта заменяется списком заведений                                                                                                                        |
 
 #### Настройка ключа Яндекс.Карт (обязательно)
@@ -118,8 +124,11 @@ frontend/src/
 **Ключевые решения:**
 
 - клиент API автоматически подставляет Bearer-токен и обновляет его при `401`;
+- backend дополнительно ставит HttpOnly cookie с access-токеном: её читает
+  `middleware.ts`, из JavaScript значение недоступно;
 - TanStack Query: кэширование 5 минут, инвалидация после мутаций;
-- `middleware.ts` защищает `/profile` и `/admin` на уровне сервера;
+- `middleware.ts` защищает `/profile` и `/admin` на уровне сервера, причём роль
+  для `/admin` подтверждается запросом к API (`/auth/me`), а не клиентской cookie;
 - палитра Tailwind: `primary` (тёмно-зелёный), `nordic` (синий), `accent` (янтарный).
 
 ### Карта (Yandex Maps JS API 3.0)
@@ -153,28 +162,41 @@ placesMap.panTo(lon, lat);            // плавно центрировать �
 
 ## Деплой в production (сервер 85.192.20.218)
 
-Стек поднимается одной командой — `bash deploy.sh` из корня репозитория
-(проверяет Docker и переменные, генерирует секреты при отсутствии, применяет
-миграции, запускает контейнеры, дожидается health-check'ов).
+```bash
+cp .env.example .env    # заполнить секреты и публичные адреса, ALLOW_LOCALHOST=false
+bash deploy.sh          # сборка → запуск → health-check → наполнение базы
+```
+
+`deploy.sh` проверяет Docker и обязательные переменные, применяет миграции
+(их выполняет контейнер backend при старте), дожидается `/api/health`, а затем
+запускает `npm run seed` в контейнере backend — без этого шага в базе нет ни
+пользователей, ни администратора. Пропустить наполнение: `SKIP_SEED=1 bash deploy.sh`.
 
 ### Контракт адресов
 
-| Переменная            | Пример для сервера              | Что делает                                                            |
-| --------------------- | ------------------------------- | --------------------------------------------------------------------- |
-| `SITE_URL`            | `http://85.192.20.218:3000`     | публичный адрес фронтенда: `metadataBase`, sitemap/robots, флаг HTTPS |
-| `CORS_ORIGIN`         | `http://85.192.20.218:3000`     | разрешённые origin в backend (список через запятую)                   |
-| `API_PUBLIC_URL`      | `http://85.192.20.218:4000/api` | публичный адрес API: логи запуска, HSTS, ссылка на Swagger            |
-| `NEXT_PUBLIC_API_URL` | `http://85.192.20.218:4000/api` | адрес API внутри бандла фронтенда (подшивается при сборке образа)     |
+| Переменная       | Пример для сервера              | Что делает                                                 |
+| ---------------- | ------------------------------- | ---------------------------------------------------------- |
+| `SITE_URL`       | `http://85.192.20.218:3000`     | публичный адрес фронтенда: `metadataBase`, флаг HTTPS/HSTS |
+| `CORS_ORIGIN`    | `http://85.192.20.218:3000`     | разрешённые origin в backend (список через запятую)        |
+| `API_PUBLIC_URL` | `http://85.192.20.218:4000/api` | публичный адрес API: логи запуска, HSTS, ссылка на Swagger |
 
-`SITE_URL` и `NEXT_PUBLIC_API_URL` обязательны: без них compose не стартует,
-а backend дополнительно отвергает `localhost` / `127.0.0.1` / `0.0.0.0` в
-`CORS_ORIGIN` и `API_PUBLIC_URL` при `NODE_ENV=production`
-(`backend/src/config/env.ts`) — это ловит деплой с забытыми переменными.
+`NEXT_PUBLIC_API_URL` в `.env` не задаётся: фронтенд собирается с относительным
+`/api`, а `frontend/src/middleware.ts` проксирует запросы на backend по
+`API_INTERNAL_URL` (`http://backend:4000/api` в compose). Поэтому один и тот же
+образ работает и локально, и на сервере, а при переезде пересборка не нужна.
+
+`SITE_URL`, `CORS_ORIGIN` и `API_PUBLIC_URL` обязательны. При
+`NODE_ENV=production` backend отвергает `localhost` / `127.0.0.1` / `0.0.0.0` в
+`CORS_ORIGIN` и `API_PUBLIC_URL` (`backend/src/config/env.ts`) — так ловится
+деплой с забытыми адресами. Для локального стенда без домена проверка
+отключается флагом `ALLOW_LOCALHOST=true` (см. `.env.example`).
 
 ### Что важно знать
 
-1. **`NEXT_PUBLIC_*` фиксируются при сборке образа.** Сменили адрес — пересоберите
+1. **`NEXT_PUBLIC_*` фиксируются при сборке образа** (`NEXT_PUBLIC_SITE_NAME`,
+   `NEXT_PUBLIC_SITE_TAGLINE`, ключ Яндекс.Карт). Сменили их — пересоберите
    frontend (`docker compose build --no-cache frontend`), перезапуск не поможет.
+   Адресов это не касается: API ходит через относительный `/api`.
 2. **Порты.** Frontend — `3000`, API — `4000`, PostgreSQL — **только `127.0.0.1`**
    (извне закрыт), документация MkDocs — **только `127.0.0.1`**.
 3. **Swagger UI в production выключен** (`SWAGGER_ENABLED=false`). Включить для
@@ -258,6 +280,7 @@ npm run typecheck           # проверка типов
 npm run build               # production-сборка
 
 # Docker
-docker-compose up --build   # весь стек
-docker-compose down         # остановить
+docker compose up -d --build          # весь стек
+docker compose down                   # остановить (без -v: том с БД сохраняется)
+docker compose exec backend npm run seed   # пере-наполнить базу демо-данными
 ```

@@ -1,17 +1,16 @@
 import { Client } from 'pg';
 import { execSync } from 'child_process';
-import dotenv from 'dotenv';
+import { testDatabaseUrl } from './testDatabase';
 
 /**
  * Глобальная настройка Jest (выполняется один раз перед всеми тестами).
- * 1. Читает DATABASE_URL тестовой базы из .env.test
+ * 1. Определяет DSN тестовой базы (см. testDatabase.ts)
  * 2. Создаёт тестовую базу данных, если она ещё не существует
  * 3. Применяет схему через `prisma db push`
  */
 export default async function globalSetup(): Promise<void> {
-  const parsed = dotenv.config({ path: '.env.test' }).parsed as Record<string, string>;
-  const testUrl = parsed.DATABASE_URL;
-  const dbName = new URL(testUrl.replace('postgresql://', 'postgres://')).pathname.slice(1);
+  const testUrl = testDatabaseUrl();
+  const dbName = new URL(testUrl).pathname.slice(1);
 
   // Адрес до БД без имени базы (подключаемся к postgres)
   const adminUrl = testUrl.replace(`/${dbName}`, '/postgres');

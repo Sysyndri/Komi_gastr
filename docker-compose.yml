@@ -2,14 +2,18 @@
 # Docker Compose — платформа «Гастрономия Коми»
 # Сервисы: postgres, backend, frontend, docs (MkDocs)
 #
-# Все публичные адреса берутся из корневого .env (см. .env.example).
-# Для продакшена на сервере 85.192.20.218 достаточно задать:
-#   SITE_URL=http://85.192.20.218:3000
-#   API_PUBLIC_URL=http://85.192.20.218:4000/api
-#   NEXT_PUBLIC_API_URL=http://85.192.20.218:4000/api
-#   CORS_ORIGIN=http://85.192.20.218:3000
-# NEXT_PUBLIC_* вшиваются в сборку frontend на этапе build: при их изменении
-# обязательна пересборка — docker compose build --no-cache frontend
+# Один и тот же файл поднимает стек и локально, и на сервере: отличаются только
+# значения переменных в корневом .env (см. .env.example).
+#
+#   ЛОКАЛЬНО:   ALLOW_LOCALHOST=true, адреса на localhost
+#   НА СЕРВЕРЕ: ALLOW_LOCALHOST=false и публичный адрес, например
+#               SITE_URL=http://85.192.20.218:3000
+#               CORS_ORIGIN=http://85.192.20.218:3000
+#               API_PUBLIC_URL=http://85.192.20.218:4000/api
+#
+# NEXT_PUBLIC_API_URL намеренно не задаётся: frontend собирается с относительным
+# /api, а middleware проксирует запросы на backend по API_INTERNAL_URL. Поэтому
+# образ не зависит от адреса сервера и не требует пересборки при переезде.
 # ============================================================================
 name: gastro-komi
 
@@ -72,6 +76,15 @@ services:
       TRUST_PROXY: ${TRUST_PROXY:-0}
       # Swagger UI (/api-docs) в production по умолчанию выключен
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      # Локальный стенд на своей машине: разрешает localhost в публичных адресах.
+      # На сервере оставьте false — тогда ALLOW_LOCALHOST проверки включаются
+      # в полную силу и деплой с забытыми адресами падает сразу.
+      ALLOW_LOCALHOST: ${ALLOW_LOCALHOST:-false}
+      # Лимиты запросов: окно (мс) и число запросов на IP (см. middleware/rateLimiter.ts)
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
+      RATE_LIMIT_AUTH_WINDOW_MS: ${RATE_LIMIT_AUTH_WINDOW_MS:-900000}
+      RATE_LIMIT_AUTH_MAX: ${RATE_LIMIT_AUTH_MAX:-10}
       # Учётные данные для `npm run seed` (backend) — только из .env.
       # Не обязательны для запуска: seed проверяет их сам.
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
@@ -107,12 +120,20 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        # Вшиваются в JS-бандл на этапе сборки — менять только с --no-cache
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL не задан в .env — публичный URL API}
+        # Относительный путь → middleware.ts проксирует на http://backend:4000/api.
+        # CSP connect-src 'self' остаётся легальной, CORS не нужен,
+        # при переносе на сервер образ не нужно пересобирать.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
         NEXT_PUBLIC_SITE_URL: ${SITE_URL:?SITE_URL не задан в .env — публичный URL фронтенда}
         NEXT_PUBLIC_YANDEX_MAPS_API_KEY: ${NEXT_PUBLIC_YANDEX_MAPS_API_KEY:-}
         NEXT_PUBLIC_SITE_NAME: ${SITE_NAME:-Гастрономия Коми}
         NEXT_PUBLIC_SITE_TAGLINE: ${SITE_TAGLINE:-}
+    environment:
+      # Внутренний адрес backend в сети compose. src/middleware.ts проксирует на
+      # него запросы браузера к /api (NEXT_PUBLIC_API_URL при сборке = /api),
+      # поэтому CORS не нужен, CSP 'self' корректна, а образ один и тот же для
+      # локального стенда и сервера.
+      API_INTERNAL_URL: http://backend:4000/api
     container_name: gastro-komi-frontend
     restart: unless-stopped
     ports:

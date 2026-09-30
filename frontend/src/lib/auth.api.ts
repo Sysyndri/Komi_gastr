@@ -11,12 +11,6 @@ import {
   User,
 } from "@/types";
 
-/** Записывает роль пользователя в cookie для middleware. */
-function setRoleCookie(role: string): void {
-  if (typeof document === "undefined") return;
-  document.cookie = `gk_user_role=${role}; path=/; SameSite=Lax`;
-}
-
 export const authApi = {
   async login(input: LoginRequest): Promise<AuthResponse> {
     const res = await apiFetch<ApiResponse<AuthResponse>>("/auth/login", {
@@ -24,7 +18,6 @@ export const authApi = {
       body: JSON.stringify(input),
     });
     setTokens(res.data.accessToken, res.data.refreshToken);
-    setRoleCookie(res.data.user.role);
     return res.data;
   },
 
@@ -34,7 +27,6 @@ export const authApi = {
       body: JSON.stringify(input),
     });
     setTokens(res.data.accessToken, res.data.refreshToken);
-    setRoleCookie(res.data.user.role);
     return res.data;
   },
 

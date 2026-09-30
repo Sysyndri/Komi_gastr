@@ -26,7 +26,9 @@ async function main() {
   }
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
-    update: {},
+    // Пароль и роль приводим к значениям из окружения: повторный `npm run seed`
+    // — штатный способ сменить учётные данные администратора.
+    update: { passwordHash: await bcrypt.hash(adminPassword, 10), role: Role.ADMIN },
     create: {
       email: adminEmail,
       passwordHash: await bcrypt.hash(adminPassword, 10),
@@ -41,7 +43,8 @@ async function main() {
   if (demoEmail && demoPassword) {
     const demoUser = await prisma.user.upsert({
       where: { email: demoEmail },
-      update: {},
+      // Как и у администратора: повторный seed синхронизирует пароль с .env
+      update: { passwordHash: await bcrypt.hash(demoPassword, 10) },
       create: {
         email: demoEmail,
         passwordHash: await bcrypt.hash(demoPassword, 10),
