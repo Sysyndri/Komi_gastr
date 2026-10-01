@@ -31,36 +31,51 @@ export default function HomePage() {
 
   return (
     <div className="space-y-10">
-      {/* Hero */}
-      <section className="rounded-2xl bg-gradient-to-br from-primary-700 to-primary-900 px-8 py-12 text-white">
-        <h1 className="mb-3 max-w-2xl text-3xl font-bold md:text-4xl">
-          Добро пожаловать в мир национальной кухни Республики Коми
-        </h1>
-        <p className="mb-6 max-w-2xl text-primary-100">
-          Откройте для себя традиционные блюда коми: шаньга, черинянь, пельмени
-          по-коми. Найдите заведения, запишитесь на мастер-классы и участвуйте в
-          гастрономических фестивалях.
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href="/masterclasses"
-            className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white transition hover:bg-accent-light"
-          >
-            Мастер-классы
-          </Link>
-          <Link
-            href="/events"
-            className="rounded-lg border border-white/40 px-5 py-2.5 font-medium text-white transition hover:bg-white/10"
-          >
-            Мероприятия
-          </Link>
+      {/* Hero: заголовок h1 на фоне фотографии морошки */}
+      <section className="relative overflow-hidden rounded-2xl bg-primary-900 px-5 py-8 text-white sm:px-8 sm:py-12">
+        <Image
+          src="/images/berries/cloudberry.jpg"
+          alt=""
+          fill
+          priority
+          sizes="(max-width: 1280px) 100vw, 1280px"
+          className="object-cover"
+        />
+        {/* Затемнение: заголовок должен читаться на любом участке снимка */}
+        <div
+          className="absolute inset-0 bg-gradient-to-br from-primary-900/85 via-primary-800/75 to-primary-900/90"
+          aria-hidden
+        />
+        <div className="relative">
+          <h1 className="mb-3 max-w-2xl text-2xl font-bold sm:text-3xl md:text-4xl">
+            Добро пожаловать в мир национальной кухни Республики Коми
+          </h1>
+          <p className="mb-6 max-w-2xl text-primary-100">
+            Откройте для себя традиционные блюда коми: шаньга, черинянь, пельмени
+            по-коми. Найдите заведения, запишитесь на мастер-классы и участвуйте в
+            гастрономических фестивалях.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/masterclasses"
+              className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white transition hover:bg-accent-light"
+            >
+              Мастер-классы
+            </Link>
+            <Link
+              href="/events"
+              className="rounded-lg border border-white/40 px-5 py-2.5 font-medium text-white transition hover:bg-white/10"
+            >
+              Мероприятия
+            </Link>
+          </div>
         </div>
       </section>
 
       {/* Блюда */}
       <section>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-2xl font-semibold text-gray-900">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-xl font-semibold text-gray-900 sm:text-2xl">
             Национальные блюда
           </h2>
           <Link
@@ -128,7 +143,7 @@ export default function HomePage() {
 
       {/* Карта заведений */}
       <section>
-        <h2 className="mb-4 text-2xl font-semibold text-gray-900">
+        <h2 className="mb-4 text-xl font-semibold text-gray-900 sm:text-2xl">
           Где попробовать
         </h2>
         <MapComponent places={placesQuery.data ?? []} height={380} />
@@ -136,8 +151,8 @@ export default function HomePage() {
 
       {/* Ближайшие мастер-классы */}
       <section>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-2xl font-semibold text-gray-900">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-xl font-semibold text-gray-900 sm:text-2xl">
             Ближайшие мастер-классы
           </h2>
           <Link

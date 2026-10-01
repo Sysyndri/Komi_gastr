@@ -9,3 +9,17 @@
 body {
   @apply bg-gray-50 text-gray-900 antialiased;
 }
+
+/**
+ * Заголовок h1 с фотографией морошки на фоне.
+ * Полупрозрачный градиент поверх снимка держит контраст текста на любой яркости.
+ */
+.h1-berry {
+  @apply inline-block rounded-xl bg-cover bg-center px-4 py-2 text-white;
+  background-image: linear-gradient(
+      rgba(18, 60, 41, 0.72),
+      rgba(15, 54, 36, 0.84)
+    ),
+    url('/images/berries/cloudberry.jpg');
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}

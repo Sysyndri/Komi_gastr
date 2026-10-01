@@ -192,7 +192,7 @@ export function MapComponent({ places, height = 400 }: MapComponentProps) {
       {/* Карточка выбранного заведения */}
       {selected && (
         <div
-          className="absolute bottom-4 left-4 z-10 max-w-xs rounded-xl bg-white/95 p-4 shadow-lg backdrop-blur"
+          className="absolute bottom-3 left-3 z-10 max-w-[calc(100%-1.5rem)] rounded-xl bg-white/95 p-4 shadow-lg backdrop-blur sm:bottom-4 sm:left-4 sm:max-w-xs"
           data-testid="map-popup"
         >
           <button

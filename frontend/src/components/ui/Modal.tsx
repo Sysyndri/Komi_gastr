@@ -37,7 +37,7 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
       data-testid="modal-backdrop"
     >
       <div
-        className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-4 shadow-xl sm:p-6"
         onClick={(e) => e.stopPropagation()}
         data-testid="modal"
       >

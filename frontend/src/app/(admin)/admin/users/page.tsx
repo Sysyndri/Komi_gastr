@@ -50,7 +50,8 @@ export default function AdminUsersPage() {
       {query.isLoading && <Spinner />}
 
       <Card className="overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-gray-50 text-left text-gray-500">
             <tr>
               <th className="px-4 py-3">Имя</th>
@@ -95,7 +96,8 @@ export default function AdminUsersPage() {
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       </Card>
     </div>
   );

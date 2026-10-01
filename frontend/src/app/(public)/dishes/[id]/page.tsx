@@ -47,10 +47,10 @@ export default function DishDetailPage({ params }: { params: { id: string } }) {
             />
           </div>
         )}
-        <div className="p-6">
-          <div className="mb-4 flex items-start justify-between">
+        <div className="p-4 sm:p-6">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">{dish.name}</h1>
+              <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">{dish.name}</h1>
               {dish.nameKomi && dish.nameKomi !== dish.name && (
                 <p className="mt-1 text-sm text-gray-500">
                   На коми: {dish.nameKomi}

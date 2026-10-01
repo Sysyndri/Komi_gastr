@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from './providers';
 import { Navigation } from '@/components/organisms/Navigation';
@@ -30,6 +30,23 @@ export const metadata: Metadata = {
   description:
     SITE_TAGLINE ||
     'Цифровая платформа национальной кухни Республики Коми: блюда, заведения, мастер-классы и мероприятия.',
+  // Иконки: векторная (морошка) + растровые из public/
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon-512.png', type: 'image/png', sizes: '512x512' },
+    ],
+    shortcut: ['/favicon.ico'],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }],
+  },
+};
+
+/** Цвет адресной строки на мобильных — фирменный зелёный. */
+export const viewport: Viewport = {
+  themeColor: '#1f6e46',
+  width: 'device-width',
+  initialScale: 1,
 };
 
 /**

@@ -56,7 +56,7 @@ function LoginForm() {
 
   return (
     <div className="mx-auto max-w-md">
-      <Card className="p-8">
+      <Card className="p-5 sm:p-8">
         <h1 className="mb-6 text-center text-2xl font-bold text-gray-900">
           Вход в систему
         </h1>

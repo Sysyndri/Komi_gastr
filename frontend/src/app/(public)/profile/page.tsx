@@ -52,8 +52,8 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <Card className="p-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Личный кабинет</h1>
+      <Card className="p-5 sm:p-6">
+        <h1 className="h1-berry text-xl font-semibold sm:text-2xl">Личный кабинет</h1>
         <div className="mt-3 text-sm text-gray-600">
           <p>
             <span className="font-medium">Имя:</span> {user?.name}

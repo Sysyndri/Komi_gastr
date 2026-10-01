@@ -18,7 +18,7 @@ export default function AdminDishesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-gray-900">Блюда</h1>
       </div>
 
@@ -27,7 +27,8 @@ export default function AdminDishesPage() {
       {query.isLoading && <Spinner />}
 
       <Card className="overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
           <thead className="bg-gray-50 text-left text-gray-500">
             <tr>
               <th className="px-4 py-3">Название</th>
@@ -57,7 +58,8 @@ export default function AdminDishesPage() {
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       </Card>
     </div>
   );

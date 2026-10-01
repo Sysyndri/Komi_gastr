@@ -23,7 +23,7 @@ export default function MasterClassesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-gray-900">Мастер-классы</h1>
+      <h1 className="h1-berry text-xl font-semibold sm:text-2xl">Мастер-классы</h1>
 
       <div className="flex flex-wrap gap-3">
         <div className="flex-1">

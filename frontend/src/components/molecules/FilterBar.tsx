@@ -15,7 +15,7 @@ export function FilterBar({ filters, values, onChange }: FilterBarProps) {
   return (
     <div className="flex flex-wrap gap-3" data-testid="filter-bar">
       {filters.map((f) => (
-        <div key={f.key} className="min-w-[180px]">
+        <div key={f.key} className="min-w-[45%] flex-1 sm:min-w-[180px] sm:flex-none">
           <Select
             label={f.label}
             name={f.key}

@@ -62,9 +62,9 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
 
   return (
     <div className="space-y-6">
-      <Card className="p-6">
-        <div className="mb-2 flex items-start justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">{event.title}</h1>
+      <Card className="p-5 sm:p-6">
+        <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">{event.title}</h1>
           {event.price === 0 && <Badge tone="green">Бесплатно</Badge>}
         </div>
 

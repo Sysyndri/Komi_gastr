@@ -47,7 +47,7 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-gray-900">Дашборд</h1>
         <Badge tone={stats.userGrowth >= 0 ? 'green' : 'red'}>
           Рост пользователей: {stats.userGrowth >= 0 ? '+' : ''}
@@ -74,7 +74,8 @@ export default function AdminDashboardPage() {
         {stats.topMasterClasses.length === 0 ? (
           <p className="text-sm text-gray-500">Пока нет данных.</p>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[420px] text-sm">
             <thead>
               <tr className="border-b text-left text-gray-500">
                 <th className="pb-2">Название</th>
@@ -95,7 +96,8 @@ export default function AdminDashboardPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
       </Card>
     </div>

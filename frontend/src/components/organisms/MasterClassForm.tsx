@@ -271,7 +271,7 @@ export function MasterClassForm({
         </p>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button
           type="submit"
           isLoading={createMutation.isPending || updateMutation.isPending}

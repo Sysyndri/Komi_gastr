@@ -16,7 +16,7 @@ export default function EventsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-gray-900">Мероприятия и фестивали</h1>
+      <h1 className="h1-berry text-xl font-semibold sm:text-2xl">Мероприятия и фестивали</h1>
 
       <SearchBar placeholder="Найти мероприятие..." onSearch={setSearch} />
 

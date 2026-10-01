@@ -1,4 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="12" fill="#0f766e"/>
-  <text x="32" y="44" font-size="34" text-anchor="middle" fill="#ffffff">🍲</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Гастрономия Коми — морошка">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1f6e46"/>
+      <stop offset="1" stop-color="#0f3624"/>
+    </linearGradient>
+    <linearGradient id="berry" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7c477"/>
+      <stop offset="1" stop-color="#d98e2b"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="32" fill="url(#bg)"/>
+  <g fill="#2f8a5b">
+    <ellipse cx="32" cy="14" rx="12" ry="5.5"/>
+    <ellipse cx="32" cy="14" rx="12" ry="5.5" transform="rotate(35 32 14)"/>
+    <ellipse cx="32" cy="14" rx="12" ry="5.5" transform="rotate(-35 32 14)"/>
+  </g>
+  <g fill="url(#berry)">
+    <circle cx="32" cy="37.1" r="8.6"/>
+    <circle cx="32" cy="23.4" r="8.6"/>
+    <circle cx="43.9" cy="30.2" r="8.6"/>
+    <circle cx="43.9" cy="44" r="8.6"/>
+    <circle cx="32" cy="50.9" r="8.6"/>
+    <circle cx="20.1" cy="44" r="8.6"/>
+    <circle cx="20.1" cy="30.2" r="8.6"/>
+  </g>
 </svg>

@@ -12,24 +12,33 @@ const items = [
 ];
 
 /**
- * Организм: боковое меню админ-панели.
+ * Организм: меню админ-панели.
+ *
+ * Адаптив: на телефоне и планшете — горизонтальная прокручиваемая строка
+ * вкладок, на широких экранах (>= lg) — привычный вертикальный сайдбар.
  */
 export function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-56 shrink-0 border-r border-gray-200 bg-gray-50 p-4" data-testid="admin-sidebar">
-      <p className="mb-4 px-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+    <aside
+      className="shrink-0 border-b border-gray-200 bg-gray-50 p-3 lg:w-56 lg:border-b-0 lg:border-r lg:p-4"
+      data-testid="admin-sidebar"
+    >
+      <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-gray-400 lg:mb-4">
         Администрирование
       </p>
-      <nav className="space-y-1" aria-label="Меню администратора">
+      <nav
+        className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:gap-0 lg:space-y-1 lg:overflow-visible lg:pb-0"
+        aria-label="Меню администратора"
+      >
         {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+              className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition ${
                 active ? 'bg-primary-600 text-white' : 'text-gray-700 hover:bg-gray-200'
               }`}
             >
