@@ -35,6 +35,13 @@ export const YANDEX_MAPS_KEY =
 /** Признак: карта доступна (задан ключ API). */
 export const isMapAvailable = YANDEX_MAPS_KEY.length > 0;
 
+/**
+ * Запас от краёв карты при подгонке вида под метки — доля от разброса
+ * координат. Сама метка шире и выше своей точки, поэтому без запаса крайние
+ * заведения обрезаются границей контейнера.
+ */
+const DEFAULT_FIT_PADDING = 0.15;
+
 /** URL загрузчика JS API 3.0 (формат из документации). */
 function loaderUrl(apiKey: string): string {
   return `https://api-maps.yandex.ru/v3/?apikey=${encodeURIComponent(apiKey)}&lang=ru_RU`;
@@ -143,6 +150,8 @@ export class PlacesMap {
   private api: Ymaps3Api | null = null;
   private map: YMapInstance | null = null;
   private markers = new Map<string, YMapMarkerInstance>();
+  /** Последний переданный набор точек — по нему считаются границы для показа. */
+  private points: MapPoint[] = [];
   private container: HTMLElement;
   private onClick: PointClickHandler;
   private center: [number, number];
@@ -206,6 +215,9 @@ export class PlacesMap {
   setPoints(points: MapPoint[]): void {
     if (!this.map || !this.api) return;
 
+    // Запоминаем точки: по ним fitToPoints() считает границы для показа.
+    this.points = points;
+
     const nextIds = new Set(points.map((p) => p.id));
 
     // 1. Удаляем метки, которых больше нет в списке
@@ -233,6 +245,57 @@ export class PlacesMap {
     }
   }
 
+  /**
+   * Подгоняет вид карты под метки.
+   *
+   * Без этого карта открывается на жёстко заданных `center`/`zoom` — заведения
+   * оказываются за краем экрана или слипаются в одну неразборчивую точку.
+   * Метод вызывается **один раз**: после него пользователь свободно двигает и
+   * масштабирует карту, а вид не перенастраивается сам, иначе метки «прыгали
+   * бы» при каждом обновлении списка.
+   *
+   * @param duration Длительность анимации, мс (0 — без анимации).
+   * @param padding Запас от краёв карты, доля от разброса координат.
+   */
+  fitToPoints(options: { duration?: number; padding?: number } = {}): void {
+    const map = this.map;
+    if (!map || this.points.length === 0) return;
+
+    const duration = options.duration ?? 0;
+
+    // Одна метка — границы вырождены, поэтому центрируем и приближаем сами.
+    if (this.points.length === 1) {
+      const [only] = this.points;
+      map.setLocation({
+        center: [only.longitude, only.latitude],
+        zoom: 14,
+        duration,
+      });
+      return;
+    }
+
+    const longitudes = this.points.map((p) => p.longitude);
+    const latitudes = this.points.map((p) => p.latitude);
+
+    const west = Math.min(...longitudes);
+    const east = Math.max(...longitudes);
+    const south = Math.min(...latitudes);
+    const north = Math.max(...latitudes);
+
+    const padding = options.padding ?? DEFAULT_FIT_PADDING;
+    const lonPad = (east - west) * padding;
+    const latPad = (north - south) * padding;
+
+    // LngLatBounds = [юго-западный угол, северо-восточный угол].
+    map.setLocation({
+      bounds: [
+        [west - lonPad, south - latPad],
+        [east + lonPad, north + latPad],
+      ],
+      duration,
+    });
+  }
+
   /** Плавно центрирует карту по точке. */
   panTo(longitude: number, latitude: number, zoom?: number): void {
     this.map?.update({
@@ -244,11 +307,33 @@ export class PlacesMap {
     });
   }
 
-  /** HTML-содержимое метки: пин + подпись (кастомный DOM по документации YMapMarker). */
+  /**
+   * HTML-содержимое метки: пин + подпись (кастомный DOM по документации
+   * YMapMarker).
+   *
+   * Корневой элемент — `<button>`, и на него вешается нативный обработчик
+   * клика. У метки с кастомным DOM событие `onClick` из props срабатывает
+   * не всегда, из-за чего карточка заведения не открывалась; кроме того,
+   * `<button>` делает метку доступной с клавиатуры и для скринридеров.
+   * Обработчик идемпотентен, поэтому срабатывание обоих путей безвредно.
+   */
   private buildMarkerElement(point: MapPoint): HTMLElement {
-    const root = document.createElement("div");
+    const root = document.createElement("button");
+    root.type = "button";
+    // Центрирование метки над точкой — через класс, а не style: API забирает
+    // элемент себе и стирает у него атрибут style. Поэтому же и hover-масштаб
+    // живёт в CSS (см. .ymap-marker-anchor), иначе он перебьёт сдвиг к точке.
     root.className =
-      "flex cursor-pointer flex-col items-center transition-transform hover:scale-110";
+      "ymap-marker-anchor flex cursor-pointer flex-col items-center " +
+      "border-0 bg-transparent p-0 transition";
+    root.setAttribute("aria-label", `${point.name} — ${point.address}`);
+    // Метка создаётся вне React, поэтому разметку для тестов задаём вручную.
+    root.dataset.testid = "map-marker";
+    // stopPropagation: клик по метке не должен восприниматься как перетаскивание.
+    root.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.onClick(point);
+    });
 
     const pin = document.createElement("div");
     pin.className =
@@ -273,12 +358,18 @@ export class PlacesMap {
     return [...this.markers.values()];
   }
 
+  /** Текущий объект карты (для тестов и отладки). */
+  getMapForTests(): YMapInstance | null {
+    return this.map;
+  }
+
   /** Уничтожает карту и очищает ресурсы. */
   destroy(): void {
     for (const marker of this.markers.values()) {
       this.map?.removeChild(marker);
     }
     this.markers.clear();
+    this.points = [];
     this.map?.destroy();
     this.map = null;
   }

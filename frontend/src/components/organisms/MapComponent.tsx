@@ -49,23 +49,35 @@ export function MapComponent({ places, height = 400 }: MapComponentProps) {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<SelectedPoint | null>(null);
 
+  // Актуальный список заведений для обработчика клика. Эффект карты создаётся
+  // один раз (зависимость — только isMapAvailable), поэтому прямой захват
+  // `places` давал бы пустой массив из первого рендера: данные приходят позже,
+  // клик по метке ничего не находил — карточка не открывалась, а карта не
+  // центрировалась. Ref всегда содержит свежие данные.
+  const placesRef = useRef(places);
+  placesRef.current = places;
+
   useEffect(() => {
     if (!isMapAvailable || !containerRef.current) return;
 
     const placesMap = new PlacesMap(containerRef.current, {
       onClick: (point) => {
-        const place = places.find((p) => p.id === point.id);
-        if (place) {
-          setSelected({
-            name: place.name,
-            address: place.address,
-            description: place.description,
-            phone: place.phone,
-            workHours: place.workHours,
-          });
-          // Плавно центрируем карту по выбранной точке
-          mapRef.current?.panTo(place.longitude, place.latitude);
-        }
+        // Плавно центрируем карту по выбранной точке. Координаты есть в самой
+        // метке, поэтому центрирование работает независимо от данных заведения.
+        mapRef.current?.panTo(point.longitude, point.latitude);
+
+        const place = placesRef.current.find((p) => p.id === point.id);
+        setSelected(
+          place
+            ? {
+                name: place.name,
+                address: place.address,
+                description: place.description,
+                phone: place.phone,
+                workHours: place.workHours,
+              }
+            : { name: point.name, address: point.address },
+        );
       },
     });
 
@@ -79,15 +91,29 @@ export function MapComponent({ places, height = 400 }: MapComponentProps) {
     return () => {
       placesMap.destroy();
       mapRef.current = null;
+      fittedRef.current = false;
       setReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMapAvailable]);
 
+  // Подгонка вида карты под метки выполняется ровно один раз за жизнь карты:
+  // повторные вызовы перенастраивали бы вид поверх действий пользователя, и
+  // метки «прыгали» бы при каждом обновлении списка заведений.
+  const fittedRef = useRef(false);
+
   // Синхронизация меток при изменении списка заведений
   useEffect(() => {
-    if (ready && mapRef.current) {
-      mapRef.current.setPoints(places.map(toMapPoint));
+    if (!ready || !mapRef.current) return;
+
+    const points = places.map(toMapPoint);
+    mapRef.current.setPoints(points);
+
+    // Подгоняем вид один раз — когда метки появились (данные приходят асинхронно,
+    // поэтому на первом рендере их ещё нет).
+    if (!fittedRef.current && points.length > 0) {
+      fittedRef.current = true;
+      mapRef.current.fitToPoints();
     }
   }, [places, ready]);
 
