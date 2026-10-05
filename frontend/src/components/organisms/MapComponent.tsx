@@ -91,19 +91,31 @@ export function MapComponent({ places, height = 400 }: MapComponentProps) {
     }
   }, [places, ready]);
 
-  // Режим без ключа API: кликабельный список заведений
-  if (!isMapAvailable) {
+  // Режим без ключа API или после ошибки загрузки: кликабельный список заведений
+  // (graceful degradation — секция остаётся полезной, даже если карта не поднялась,
+  // например на сервере, где ключ Яндекса отклонён по HTTP Referer).
+  if (!isMapAvailable || error) {
     return (
       <div
         className="rounded-xl border border-gray-200 bg-gray-50 p-4"
         data-testid="map-fallback"
         style={{ minHeight: height }}
       >
-        <p className="mb-3 text-sm font-medium text-gray-600">
-          🏠 Заведения (без карты — добавьте ключ
-          NEXT_PUBLIC_YANDEX_MAPS_API_KEY). Нажмите на заведение, чтобы увидеть
-          описание:
-        </p>
+        {error ? (
+          <p
+            className="mb-3 rounded-lg bg-red-50 p-2 text-sm text-red-700"
+            role="alert"
+          >
+            ⚠️ Карта недоступна: {error} Показан список заведений — нажмите на
+            заведение, чтобы увидеть описание:
+          </p>
+        ) : (
+          <p className="mb-3 text-sm font-medium text-gray-600">
+            🏠 Заведения (без карты — добавьте ключ
+            NEXT_PUBLIC_YANDEX_MAPS_API_KEY). Нажмите на заведение, чтобы
+            увидеть описание:
+          </p>
+        )}
         <ul className="space-y-2">
           {places.map((p) => (
             <li key={p.id}>
@@ -155,37 +167,13 @@ export function MapComponent({ places, height = 400 }: MapComponentProps) {
       />
 
       {/* Загрузка */}
-      {!ready && !error && (
+      {!ready && (
         <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-gray-50">
           <span
             className="h-8 w-8 animate-spin rounded-full border-4 border-primary-200 border-t-primary-600"
             data-testid="map-spinner"
           />
           <span className="ml-2 text-sm text-gray-500">Загружаем карту...</span>
-        </div>
-      )}
-
-      {/* Ошибка загрузки API */}
-      {error && (
-        <div
-          className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-red-50 p-4 text-center text-sm text-red-700"
-          role="alert"
-        >
-          <p>Не удалось загрузить карту: {error}</p>
-          <p className="max-w-md text-xs text-red-600">
-            Проверьте ключ NEXT_PUBLIC_YANDEX_MAPS_API_KEY и ограничение по HTTP
-            Referer в{" "}
-            <a
-              href="https://developer.tech.yandex.ru/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              Кабинете разработчика
-            </a>{" "}
-            (там должны быть указаны localhost и 127.0.0.1; изменения вступают в
-            силу через 15 минут).
-          </p>
         </div>
       )}
 

@@ -45,6 +45,28 @@ function getGlobalApi(): Ymaps3Api | undefined {
   return (window as unknown as { ymaps3?: Ymaps3Api }).ymaps3;
 }
 
+/**
+ * Понятное сообщение об ошибке загрузки API.
+ *
+ * В проде самая частая причина — ключ отклонён Яндексом (HTTP 403 «Invalid api
+ * key») из-за ограничения по HTTP Referer: загрузчик отдаёт JSON-ответ, который
+ * браузер блокирует через ORB (net::ERR_BLOCKED_BY_ORB), и скрипт не исполняется.
+ * Поэтому в текст добавляем текущий origin — именно его нужно внести в список
+ * разрешённых адресов ключа, а сам ключ — задать на этапе сборки образа.
+ */
+function loadErrorMessage(reason: string): string {
+  const origin =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "неизвестный origin";
+  return (
+    `${reason} (текущий origin: ${origin}). Проверьте ключ ` +
+    "NEXT_PUBLIC_YANDEX_MAPS_API_KEY (вшивается на этапе сборки) и ограничение " +
+    "по HTTP Referer в кабинете разработчика Яндекса — в нём должен быть указан " +
+    "этот домен/IP."
+  );
+}
+
 /** Промис загрузки API — чтобы скрипт подключался ровно один раз. */
 let loadPromise: Promise<typeof ymaps3> | null = null;
 
@@ -82,7 +104,13 @@ export function loadYmaps3(
       const api = getGlobalApi();
       if (!api) {
         loadPromise = null;
-        reject(new Error("Yandex Maps JS API загрузился, но ymaps3 не найден"));
+        reject(
+          new Error(
+            loadErrorMessage(
+              "загрузчик вернулся без ymaps3 — вероятно, ключ отклонён API",
+            ),
+          ),
+        );
         return;
       }
       // По документации: компоненты доступны только после ymaps3.ready
@@ -90,7 +118,11 @@ export function loadYmaps3(
     };
     script.onerror = () => {
       loadPromise = null; // разрешаем повторную попытку
-      reject(new Error("Не удалось загрузить Yandex Maps JS API"));
+      reject(
+        new Error(
+          loadErrorMessage("не удалось загрузить загрузчик Yandex Maps JS API"),
+        ),
+      );
     };
     document.head.appendChild(script);
   });

@@ -73,9 +73,10 @@ test.describe("Запись на мастер-класс (авторизован
   test("открытие страницы мастер-класса и запись", async ({ page }) => {
     await page.goto("/masterclasses");
 
-    // Кликаем «Подробнее» на первой карточке
+    // Вся карточка — ссылка на страницу мастер-класса, кликаем по ней.
+    // Элемент «Подробнее» внутри — span, отдельной ссылкой он не является.
     const firstCard = page.getByTestId("masterclass-card").first();
-    await firstCard.getByRole("link", { name: "Подробнее" }).click();
+    await firstCard.click();
     await expect(page).toHaveURL(/\/masterclasses\//);
 
     // Кнопка записи доступна
